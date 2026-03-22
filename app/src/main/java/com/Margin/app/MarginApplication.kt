@@ -1,11 +1,11 @@
-package com.attendease.app
+package com.Margin.app
 
 import android.app.Application
 import android.content.Context
 import androidx.datastore.preferences.preferencesDataStore
-import com.attendease.app.data.local.AppDatabase
-import com.attendease.app.data.local.AttendanceRepository
-import com.attendease.app.data.local.UserPreferencesRepository
+import com.Margin.app.data.local.AppDatabase
+import com.Margin.app.data.local.AttendanceRepository
+import com.Margin.app.data.local.UserPreferencesRepository
 
 private val Context.dataStore by preferencesDataStore(name = "user_preferences")
 
