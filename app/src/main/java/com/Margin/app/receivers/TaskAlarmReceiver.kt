@@ -1,4 +1,4 @@
-package com.attendease.app.receivers
+package com.Margin.app.receivers
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import com.attendease.app.R
 
 class TaskAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

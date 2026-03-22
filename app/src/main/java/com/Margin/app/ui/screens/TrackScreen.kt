@@ -1,4 +1,4 @@
-package com.attendease.app.ui.screens
+package com.Margin.app.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -18,10 +18,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.attendease.app.ui.theme.*
-import com.attendease.app.ui.viewmodel.TodayClassUiState
-import com.attendease.app.ui.viewmodel.TrackViewModel
-import com.attendease.app.utils.getAppViewModel
+import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.TodayClassUiState
+import com.Margin.app.ui.viewmodel.TrackViewModel
+import com.Margin.app.utils.getAppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

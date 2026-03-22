@@ -7,9 +7,9 @@ import com.Margin.app.data.local.AppDatabase
 import com.Margin.app.data.local.AttendanceRepository
 import com.Margin.app.data.local.UserPreferencesRepository
 
-private val Context.dataStore by preferencesDataStore(name = "user_preferences")
+private val Context.dataStore by preferencesDataStore(name = "margin_prefs")
 
-class AttendEaseApplication : Application() {
+class MarginApplication : Application() {
 
     // Lazy initialization so the db is created only when needed
     val database: AppDatabase by lazy { AppDatabase.getInstance(this) }

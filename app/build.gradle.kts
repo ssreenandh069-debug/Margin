@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.attendease.app"
+    namespace = "com.Margin.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.attendease.app"
+        applicationId = "com.Margin.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

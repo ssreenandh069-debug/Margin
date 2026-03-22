@@ -1,11 +1,8 @@
-package com.attendease.app.ui.viewmodel
+package com.Margin.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.attendease.app.data.local.AttendanceRepository
-import com.attendease.app.data.local.entity.AttendanceRecordEntity
-import com.attendease.app.data.local.entity.SubjectEntity
-import com.attendease.app.data.local.entity.TimetableEntity
+import com.Margin.app.data.local.AttendanceRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar

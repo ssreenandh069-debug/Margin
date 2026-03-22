@@ -1,4 +1,4 @@
-package com.attendease.app.data.local.entity
+package com.Margin.app.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

@@ -1,4 +1,4 @@
-package com.attendease.app.ui.theme
+package com.Margin.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

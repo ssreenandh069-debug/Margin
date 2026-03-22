@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AttendEase"
+rootProject.name = "Margin"
 include(":app")

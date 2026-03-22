@@ -1,4 +1,4 @@
-package com.attendease.app.data.local
+package com.Margin.app.data.local
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences

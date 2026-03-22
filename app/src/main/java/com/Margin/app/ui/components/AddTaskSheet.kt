@@ -1,7 +1,6 @@
-package com.attendease.app.ui.components
+package com.Margin.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,10 +17,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import android.os.Build
-import com.attendease.app.ui.theme.*
-import com.attendease.app.ui.viewmodel.SessionViewModel
-import com.attendease.app.ui.viewmodel.TaskViewModel
-import com.attendease.app.utils.getAppViewModel
+import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.SessionViewModel
+import com.Margin.app.ui.viewmodel.TaskViewModel
+import com.Margin.app.utils.getAppViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

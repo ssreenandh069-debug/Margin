@@ -1,7 +1,6 @@
-package com.attendease.app.ui.components
+package com.Margin.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,9 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.attendease.app.ui.theme.*
-import com.attendease.app.ui.viewmodel.TimetableViewModel
-import com.attendease.app.utils.getAppViewModel
+import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.TimetableViewModel
+import com.Margin.app.utils.getAppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

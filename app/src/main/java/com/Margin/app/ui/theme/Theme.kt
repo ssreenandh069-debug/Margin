@@ -1,4 +1,4 @@
-package com.attendease.app.ui.theme
+package com.Margin.app.ui.theme
 
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -59,7 +59,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun AttendEaseTheme(
+fun MarginTheme(
     isDarkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {

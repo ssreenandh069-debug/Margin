@@ -1,4 +1,4 @@
-package com.attendease.app.ui.components
+package com.Margin.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -9,14 +9,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.attendease.app.ui.theme.*
-import com.attendease.app.ui.viewmodel.SessionViewModel
-import com.attendease.app.utils.getAppViewModel
+import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.SessionViewModel
+import com.Margin.app.utils.getAppViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

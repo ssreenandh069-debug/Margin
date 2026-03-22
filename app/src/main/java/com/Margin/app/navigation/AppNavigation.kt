@@ -1,4 +1,4 @@
-package com.attendease.app.navigation
+package com.Margin.app.navigation
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.padding
@@ -15,12 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
-import com.attendease.app.data.TaskType
-import com.attendease.app.ui.screens.*
-import com.attendease.app.ui.theme.NeonTeal
-import com.attendease.app.ui.theme.NeonTealAlpha20
-import com.attendease.app.ui.theme.TextSecondary
-import com.attendease.app.ui.viewmodel.SessionViewModel
+import com.Margin.app.data.TaskType
+import com.Margin.app.ui.screens.*
+import com.Margin.app.ui.theme.NeonTeal
+import com.Margin.app.ui.theme.NeonTealAlpha20
+import com.Margin.app.ui.theme.TextSecondary
+import com.Margin.app.ui.viewmodel.SessionViewModel
 
 sealed class Screen(
     val route: String,
@@ -48,7 +48,7 @@ val bottomNavItems = listOf(Screen.Track, Screen.Schedule, Screen.Remind)
 fun MainScaffold(
     isDarkTheme: Boolean = true,
     onToggleTheme: () -> Unit = {},
-    sessionViewModel: SessionViewModel = com.attendease.app.utils.getAppViewModel()
+    sessionViewModel: SessionViewModel = com.Margin.app.utils.getAppViewModel()
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()

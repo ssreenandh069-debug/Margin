@@ -1,10 +1,10 @@
-package com.attendease.app.ui.viewmodel
+package com.Margin.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.attendease.app.data.local.AttendanceRepository
-import com.attendease.app.data.local.entity.SessionEntity
-import com.attendease.app.data.local.entity.SubjectEntity
+import com.Margin.app.data.local.AttendanceRepository
+import com.Margin.app.data.local.entity.SessionEntity
+import com.Margin.app.data.local.entity.SubjectEntity
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -69,7 +69,7 @@ class SessionViewModel(
         if (session == null) flowOf(emptyList()) else repository.subjectsFlow(session.id)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val dashboardSubjects: StateFlow<List<com.attendease.app.ui.screens.DashboardSubjectOverview>> = activeSubjects.flatMapLatest { subjects ->
+    val dashboardSubjects: StateFlow<List<com.Margin.app.ui.screens.DashboardSubjectOverview>> = activeSubjects.flatMapLatest { subjects ->
         if (subjects.isEmpty()) flowOf(emptyList())
         else repository.getRecordsForSubjects(subjects.map { it.id }).map { records ->
             subjects.map { subject ->
@@ -78,7 +78,7 @@ class SessionViewModel(
                 val attended = validRecords.count { it.status == "PRESENT" || it.status == "PROXY" }
                 val pct = if (total == 0) 0f else attended.toFloat() / total.toFloat()
 
-                com.attendease.app.ui.screens.DashboardSubjectOverview(
+                com.Margin.app.ui.screens.DashboardSubjectOverview(
                     id = subject.id,
                     name = subject.name,
                     code = subject.code,

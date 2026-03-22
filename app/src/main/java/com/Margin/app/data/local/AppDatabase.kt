@@ -1,16 +1,11 @@
-package com.attendease.app.data.local
+package com.Margin.app.data.local
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
-import com.attendease.app.data.local.dao.*
-import com.attendease.app.data.local.entity.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import java.util.UUID
+import com.Margin.app.data.local.dao.*
+import com.Margin.app.data.local.entity.*
 
 @Database(
     entities = [
@@ -39,7 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
                 Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "attendease.db"
+                    "margin.db"
                 ).build()
                 .also { INSTANCE = it }
             }

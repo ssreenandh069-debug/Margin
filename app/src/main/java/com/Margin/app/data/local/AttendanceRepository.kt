@@ -1,7 +1,6 @@
-package com.attendease.app.data.local
+package com.Margin.app.data.local
 
-import com.attendease.app.data.local.dao.*
-import com.attendease.app.data.local.entity.*
+import com.Margin.app.data.local.entity.*
 import kotlinx.coroutines.flow.Flow
 
 class AttendanceRepository(private val db: AppDatabase) {

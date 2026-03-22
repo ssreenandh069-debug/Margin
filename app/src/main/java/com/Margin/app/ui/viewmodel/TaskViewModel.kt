@@ -1,4 +1,4 @@
-package com.attendease.app.ui.viewmodel
+package com.Margin.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import android.app.AlarmManager
@@ -6,10 +6,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.viewModelScope
-import com.attendease.app.data.local.AttendanceRepository
-import com.attendease.app.data.local.entity.SubjectEntity
-import com.attendease.app.data.local.entity.TaskEntity
-import com.attendease.app.receivers.TaskAlarmReceiver
+import com.Margin.app.data.local.AttendanceRepository
+import com.Margin.app.receivers.TaskAlarmReceiver
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import android.os.Build

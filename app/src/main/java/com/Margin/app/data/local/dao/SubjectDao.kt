@@ -1,7 +1,7 @@
-package com.attendease.app.data.local.dao
+package com.Margin.app.data.local.dao
 
 import androidx.room.*
-import com.attendease.app.data.local.entity.SubjectEntity
+import com.Margin.app.data.local.entity.SubjectEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao

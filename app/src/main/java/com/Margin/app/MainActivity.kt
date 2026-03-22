@@ -1,13 +1,13 @@
-package com.attendease.app
+package com.Margin.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
-import com.attendease.app.navigation.MainScaffold
-import com.attendease.app.ui.screens.LoginScreen
-import com.attendease.app.ui.theme.AttendEaseTheme
+import com.Margin.app.navigation.MainScaffold
+import com.Margin.app.ui.screens.LoginScreen
+import com.Margin.app.ui.theme.MarginTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -15,14 +15,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        val userPrefs = (application as AttendEaseApplication).userPreferencesRepository
+        val userPrefs = (application as MarginApplication).userPreferencesRepository
         
         setContent {
             var isDarkTheme by remember { mutableStateOf(true) }
             val isGuest by userPrefs.isGuestFlow.collectAsState(initial = null)
             val scope = rememberCoroutineScope()
             
-            AttendEaseTheme(isDarkTheme = isDarkTheme) {
+            MarginTheme(isDarkTheme = isDarkTheme) {
                 if (isGuest == true) {
                     MainScaffold(
                         isDarkTheme = isDarkTheme,

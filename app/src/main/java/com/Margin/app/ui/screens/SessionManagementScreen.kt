@@ -1,4 +1,4 @@
-package com.attendease.app.ui.screens
+package com.Margin.app.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -17,12 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.attendease.app.ui.components.CreateSessionSheet
-import com.attendease.app.ui.theme.*
-import com.attendease.app.ui.viewmodel.SessionUiState
-import com.attendease.app.ui.viewmodel.SessionViewModel
-import com.attendease.app.utils.getAppViewModel
+import com.Margin.app.ui.components.CreateSessionSheet
+import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.SessionUiState
+import com.Margin.app.ui.viewmodel.SessionViewModel
+import com.Margin.app.utils.getAppViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

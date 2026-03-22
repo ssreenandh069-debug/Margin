@@ -1,11 +1,10 @@
-package com.attendease.app.ui.screens
+package com.Margin.app.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,14 +18,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.attendease.app.data.TaskType
-import com.attendease.app.ui.components.AddTaskSheet
-import com.attendease.app.ui.theme.*
-import com.attendease.app.ui.viewmodel.TaskListState
-import com.attendease.app.ui.viewmodel.TaskUiState
-import com.attendease.app.ui.viewmodel.TaskViewModel
-import com.attendease.app.utils.getAppViewModel
+import com.Margin.app.data.TaskType
+import com.Margin.app.ui.components.AddTaskSheet
+import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.TaskListState
+import com.Margin.app.ui.viewmodel.TaskUiState
+import com.Margin.app.ui.viewmodel.TaskViewModel
+import com.Margin.app.utils.getAppViewModel
 
 // Resolves accent color from TaskType
 fun taskAccentColor(type: TaskType): Color = when (type) {

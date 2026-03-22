@@ -1,11 +1,10 @@
-package com.attendease.app.ui.screens
+package com.Margin.app.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,11 +17,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.attendease.app.ui.components.AddClassSheet
-import com.attendease.app.ui.theme.*
-import com.attendease.app.ui.viewmodel.TimetableUiState
-import com.attendease.app.ui.viewmodel.TimetableViewModel
-import com.attendease.app.utils.getAppViewModel
+import com.Margin.app.ui.components.AddClassSheet
+import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.TimetableUiState
+import com.Margin.app.ui.viewmodel.TimetableViewModel
+import com.Margin.app.utils.getAppViewModel
 
 // Cycles through distinct colors per subject code for visual variety
 private val subjectColors = listOf(NeonTeal, Magenta, Yellow, BlueAccent, PurpleAccent, AttendOrange)
