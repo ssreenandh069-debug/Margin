@@ -1,5 +1,6 @@
 # ── Android/Java ───────────────────────────────────────────────────────────
 .gradle/
+.navigation/
 build/
 app/build/
 *.class
@@ -26,6 +27,12 @@ Thumbs.db
 
 # ── Other ──────────────────────────────────────────────────────────────────
 theme_fix.py
+*.apk
+*.ap_
+*.dex
+*.db-journal
+*.db-shm
+*.db-wal
 .gemini/
 .agent/
 .agents/

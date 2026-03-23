@@ -12,8 +12,9 @@ I wanted to create a tracker that didn't just feel like a spreadsheet. **Margin*
 - **Dynamic Attendance Math**: Automatically calculates exactly how many classes you need to attend to stay above your required percentage (e.g., 75%).
 - **Subject-Specific Tracking**: Support for individual subject codes and names, with support for `Present`, `Absent`, `Proxy`, and `Cancelled` statuses.
 - **Smart Task Management**: Integrated Assignments, Presentations, and Practicals lists with zero-flicker UI state handling.
-- **Automated Reminders**: Android `AlarmManager` integration that notifies you 24 hours before a task is due, complete with subject-specific context.
-- **Weekly Overview**: A timetable-driven dashboard showing your daily class counts and overall semester progress.
+- **Aggressive Task Reminders**: Multiple sequential alarms via `AlarmManager` (5x on day-before, 2x on lead-up days) to ensure deadlines are never missed.
+- **Smart Bunk Roasts**: Periodic background analysis via `WorkManager` that roasts you if your attendance is low or calculates your "safe bunk" budget.
+- **Weekly Overview**: A timetable-driven dashboard showing your daily class counts and overall semester progress, sorted by insertion order for intuitive planning.
 - **Privacy First**: Built as an offline-first Room database application. Your academic data stays on your device.
 
 ---
@@ -24,7 +25,8 @@ I wanted to create a tracker that didn't just feel like a spreadsheet. **Margin*
 - **Architecture**: MVVM (Model-View-ViewModel) with Clean Architecture patterns.
 - **Database**: Room Persistence Library for robust local storage.
 - **Async**: Kotlin Coroutines & Flow for reactive, real-time UI updates.
-- **Notifications**: Local Notification API & AlarmManager for precision reminders.
+- **Background Work**: WorkManager for periodic attendance analysis and "Smart Bunk" notifications.
+- **Notifications**: Local Notification API & AlarmManager for high-precision, multi-alarm reminders.
 - **Design**: Specialized "Neon Teal" & "Deep Nebula" dark mode theme with custom gradients.
 
 ---
