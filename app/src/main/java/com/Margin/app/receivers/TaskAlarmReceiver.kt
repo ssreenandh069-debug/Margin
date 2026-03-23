@@ -10,31 +10,32 @@ import androidx.core.app.NotificationCompat
 
 class TaskAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val title = intent.getStringExtra("title") ?: "Task Reminder"
-        val subjectName = intent.getStringExtra("SUBJECT_NAME") ?: "your subject"
+        val taskTitle = intent.getStringExtra("TASK_TITLE") ?: "Task Reminder"
+        val bodyText  = intent.getStringExtra("NOTIF_BODY")  ?: "You have an upcoming task due soon!"
+        val notifId   = intent.getIntExtra("NOTIF_ID", System.currentTimeMillis().toInt())
 
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val channelId = "TASK_REMINDERS"
+        val notifManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        // Ensure channel exists (safe to call multiple times)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                "TASK_REMINDERS",
-                "Task Reminders",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Reminders for upcoming tasks and assignments."
-            }
-            notificationManager.createNotificationChannel(channel)
+            notifManager.createNotificationChannel(
+                NotificationChannel(channelId, "Task Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
+                    description = "Aggressive reminders for upcoming tasks and assignments."
+                    enableVibration(true)
+                }
+            )
         }
 
-        val notification = NotificationCompat.Builder(context, "TASK_REMINDERS")
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("Upcoming: $title")
-            .setContentText("Your task for $subjectName is due soon!")
+            .setContentTitle("📋 $taskTitle")
+            .setContentText(bodyText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
 
-        // Use a unique ID based on time or random hash
-        notificationManager.notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+        notifManager.notify(notifId, notification)
     }
 }

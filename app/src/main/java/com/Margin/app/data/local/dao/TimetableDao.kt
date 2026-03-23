@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TimetableDao {
 
-    @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE dayOfWeek = :day AND subjects.sessionId = :sessionId ORDER BY startTime ASC")
+    @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE dayOfWeek = :day AND subjects.sessionId = :sessionId ORDER BY timetable.lastModified ASC")
     fun getEntriesByDay(day: Int, sessionId: String): Flow<List<TimetableEntity>>
 
     @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE timetable.subjectId = :subjectId ORDER BY dayOfWeek ASC")

@@ -154,7 +154,7 @@ fun DashboardScreen(
                             // Circular progress
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(110.dp)) {
                                 CircularProgressIndicator(
-                                    progress = { overallAttendance },
+                                    progress = { overallAttendance / 100f },
                                     modifier = Modifier.size(110.dp),
                                     color = NeonTeal,
                                     strokeWidth = 8.dp,
@@ -163,7 +163,7 @@ fun DashboardScreen(
                                 )
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
-                                        "${(overallAttendance * 100).toInt()}%",
+                                        String.format(java.util.Locale.US, "%.2f%%", overallAttendance),
                                         fontSize = 26.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = NeonTeal
@@ -403,8 +403,8 @@ private fun MiniStat(label: String, value: String, color: Color) {
 private fun SubjectProgressRow(subject: DashboardSubjectOverview) {
     val pct = subject.percentage
     val barColor = when {
-        pct >= 0.75f -> NeonTeal
-        pct >= 0.60f -> AttendOrange
+        pct >= 85f -> NeonTeal
+        pct >= 60f -> AttendOrange
         else -> AttendRed
     }
     Card(
@@ -426,7 +426,7 @@ private fun SubjectProgressRow(subject: DashboardSubjectOverview) {
                     Text(subject.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
                 }
                 Text(
-                    "${(pct * 100).toInt()}%",
+                    String.format(java.util.Locale.US, "%.2f%%", pct),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = barColor
@@ -434,7 +434,7 @@ private fun SubjectProgressRow(subject: DashboardSubjectOverview) {
             }
             Spacer(Modifier.height(10.dp))
             LinearProgressIndicator(
-                progress = { pct },
+                progress = { pct / 100f },
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
                 color = barColor,
                 trackColor = MaterialTheme.colorScheme.outline,

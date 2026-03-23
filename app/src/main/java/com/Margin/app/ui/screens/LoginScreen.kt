@@ -90,7 +90,7 @@ fun LoginScreen(onEnterApp: () -> Unit = {}) {
             Spacer(Modifier.height(12.dp))
 
             Text(
-                text = "Track your attendance effortlessly",
+                text = "Track how much you can bunk before being in trouble",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

@@ -82,10 +82,10 @@ class TrackViewModel(
             val record = todayRecords.find { it.subjectId == subject.id }
             val status = record?.status ?: "NONE"
             
-            val validRecords = allRecords.filter { it.subjectId == subject.id && it.status in listOf("PRESENT", "ABSENT", "PROXY") }
-            val total = validRecords.size
-            val attended = validRecords.count { it.status == "PRESENT" || it.status == "PROXY" }
-            val computedPct = if (total == 0) 0f else attended.toFloat() / total.toFloat()
+            val subjectRecords = allRecords.filter { it.subjectId == subject.id }
+            val attended = subjectRecords.count { it.status == "PRESENT" || it.status == "PROXY" }
+            val total = subjectRecords.count { it.status == "PRESENT" || it.status == "ABSENT" || it.status == "PROXY" }
+            val computedPct = if (total == 0) 0f else (attended.toFloat() / total.toFloat()) * 100f
 
             TodayClassUiState(
                 timetableId = entry.id,

@@ -15,6 +15,10 @@ interface AttendanceRecordDao {
     @Query("SELECT * FROM attendance_records WHERE subjectId IN (:subjectIds)")
     fun getRecordsForSubjects(subjectIds: List<String>): Flow<List<AttendanceRecordEntity>>
 
+    /** One-shot suspend version for use in Workers */
+    @Query("SELECT * FROM attendance_records WHERE subjectId IN (:subjectIds)")
+    suspend fun getRecordsForSubjectsOnce(subjectIds: List<String>): List<AttendanceRecordEntity>
+
     /** All records on a specific day (start-of-day millis window) */
     @Query("SELECT * FROM attendance_records WHERE date = :date")
     fun getRecordsByDate(date: Long): Flow<List<AttendanceRecordEntity>>

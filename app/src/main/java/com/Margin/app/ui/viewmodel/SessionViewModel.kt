@@ -46,15 +46,16 @@ class SessionViewModel(
                         )
                     } else {
                         repository.getRecordsForSubjects(subjects.map { it.id }).map { records ->
-                            val validRecords = records.filter { it.status in listOf("PRESENT", "ABSENT", "PROXY") }
+                            val attendedClasses = records.count { it.status == "PRESENT" || it.status == "PROXY" }
+                            val totalClasses = records.count { it.status == "PRESENT" || it.status == "ABSENT" || it.status == "PROXY" }
                             SessionUiState(
                                 id = session.id,
                                 name = session.name,
                                 subjectCount = subjects.size,
                                 startedDaysAgo = maxOf(0, daysAgo),
                                 isActive = session.isActive,
-                                attendedClasses = validRecords.count { it.status == "PRESENT" || it.status == "PROXY" },
-                                totalClasses = validRecords.size
+                                attendedClasses = attendedClasses,
+                                totalClasses = totalClasses
                             )
                         }
                     }
@@ -73,10 +74,10 @@ class SessionViewModel(
         if (subjects.isEmpty()) flowOf(emptyList())
         else repository.getRecordsForSubjects(subjects.map { it.id }).map { records ->
             subjects.map { subject ->
-                val validRecords = records.filter { it.subjectId == subject.id && it.status in listOf("PRESENT", "ABSENT", "PROXY") }
-                val total = validRecords.size
-                val attended = validRecords.count { it.status == "PRESENT" || it.status == "PROXY" }
-                val pct = if (total == 0) 0f else attended.toFloat() / total.toFloat()
+                val subjectRecords = records.filter { it.subjectId == subject.id }
+                val attended = subjectRecords.count { it.status == "PRESENT" || it.status == "PROXY" }
+                val total = subjectRecords.count { it.status == "PRESENT" || it.status == "ABSENT" || it.status == "PROXY" }
+                val pct = if (total == 0) 0f else (attended.toFloat() / total.toFloat()) * 100f
 
                 com.Margin.app.ui.screens.DashboardSubjectOverview(
                     id = subject.id,
@@ -94,7 +95,7 @@ class SessionViewModel(
     val overallAttendanceProgress: StateFlow<Float> = dashboardSubjects.map { overviews ->
         val total = overviews.sumOf { it.totalClasses }
         val attended = overviews.sumOf { it.attendedClasses }
-        if (total == 0) 0f else attended.toFloat() / total.toFloat()
+        if (total == 0) 0f else (attended.toFloat() / total.toFloat()) * 100f
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
     val totalTrackedClasses: StateFlow<Int> = dashboardSubjects.map { overviews ->

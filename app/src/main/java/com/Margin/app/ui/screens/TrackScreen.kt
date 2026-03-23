@@ -153,10 +153,10 @@ private fun ClassCard(
 ) {
     val pct = session.attendancePct
     val totalCount = session.totalClasses
-    val attendedCount = kotlin.math.round(pct * totalCount).toInt()
+    val attendedCount = kotlin.math.round((pct / 100f) * totalCount).toInt()
     
     val needed = kotlin.math.ceil((0.75f * totalCount - attendedCount) / 0.25f).toInt()
-    val showWarning = totalCount > 0 && pct < 0.75f && needed > 0
+    val showWarning = totalCount > 0 && pct < 75f && needed > 0
 
     Card(
         modifier = Modifier
@@ -199,13 +199,13 @@ private fun ClassCard(
                 }
                 // Percentage
                 val pctColor = when {
-                    pct >= 0.85f -> NeonTeal
-                    pct >= 0.75f -> AttendGreen
-                    pct >= 0.60f -> AttendOrange
+                    pct >= 85f -> NeonTeal
+                    pct >= 75f -> AttendGreen
+                    pct >= 60f -> AttendOrange
                     else -> AttendRed
                 }
                 Text(
-                    "${(pct * 100).toInt()}%",
+                    String.format(java.util.Locale.US, "%.2f%%", pct),
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = pctColor
