@@ -15,6 +15,7 @@ I wanted to create a tracker that didn't just feel like a spreadsheet. **Margin*
 - **Aggressive Task Reminders**: Multiple sequential alarms via `AlarmManager` (5x on day-before, 2x on lead-up days) to ensure deadlines are never missed.
 - **Smart Bunk Roasts**: Periodic background analysis via `WorkManager` that roasts you if your attendance is low or calculates your "safe bunk" budget.
 - **Weekly Overview**: A timetable-driven dashboard showing your daily class counts and overall semester progress, sorted by insertion order for intuitive planning.
+- **Shareable Timetables**: Export and import entire semester schedules (subjects and slots) via a lightweight JSON format to instantly share with friends.
 - **Privacy First**: Built as an offline-first Room database application. Your academic data stays on your device.
 
 ---
@@ -41,8 +42,8 @@ I wanted to create a tracker that didn't just feel like a spreadsheet. **Margin*
 
 ## 🗺️ Roadmap & Upcoming Features
 
-- **Supabase Cloud Sync**: Effortless cloud-driven session backups and cross-device synchronization.
-- **Export to PDF/Excel**: Generate local reports for academic records.
+- **Export to PDF/Excel**: Generate local reports for academic records at the end of semester.
+- **Widget Support**: Home screen attendance widget showing today's classes and current %.
 - **Community Templates**: Share and download session subject templates for specific courses.
 
 ---

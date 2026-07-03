@@ -29,8 +29,17 @@ class SmartBunkWorker(
             val allRecords = db.attendanceRecordDao().getRecordsForSubjectsOnce(subjectIds)
 
             // Aggregate across all subjects
-            val attended = allRecords.count { it.status == "PRESENT" || it.status == "PROXY" }
-            val total = allRecords.count { it.status == "PRESENT" || it.status == "ABSENT" || it.status == "PROXY" }
+            // Status math (must match TrackViewModel / SessionViewModel):
+            //   attended = PRESENT | PROXY | DUTY
+            //   total    = PRESENT | PROXY | DUTY | BUNK | EXCUSED | DUTY_ABSENT
+            // Bug fix: previous code used "ABSENT" — the app uses "BUNK" for intentional skips.
+            val attended = allRecords.count {
+                it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY"
+            }
+            val total = allRecords.count {
+                it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
+                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT"
+            }
 
             if (total == 0) return Result.success()
 

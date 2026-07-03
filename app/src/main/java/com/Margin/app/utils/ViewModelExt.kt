@@ -21,7 +21,7 @@ inline fun <reified T : ViewModel> getAppViewModel(): T {
             return when (modelClass) {
                 TrackViewModel::class.java -> TrackViewModel(repository) as V
                 TaskViewModel::class.java -> TaskViewModel(repository) as V
-                SessionViewModel::class.java -> SessionViewModel(repository) as V
+                SessionViewModel::class.java -> SessionViewModel(repository, (context.applicationContext as MarginApplication).userPreferencesRepository, (context.applicationContext as MarginApplication).database) as V
                 TimetableViewModel::class.java -> TimetableViewModel(repository) as V
                 else -> throw java.lang.IllegalArgumentException("Unknown ViewModel class: \${modelClass.name}")
             }

@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.Margin.app"
+    android:versionCode="1"
+    android:versionName="1.0">
+
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -25,6 +30,38 @@
         </activity>
 
         <receiver android:name=".receivers.TaskAlarmReceiver" android:enabled="true" android:exported="false" />
+
+        <!--
+            BootReceiver: Re-schedules all pending task alarms after reboot.
+            BOOT_COMPLETED        = Normal boot after power-on / restart
+            LOCKED_BOOT_COMPLETED = Direct Boot (API 24+), fires before user unlocks
+            MY_PACKAGE_REPLACED   = App update — system clears alarms during update
+        -->
+        <receiver
+            android:name=".receivers.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            FileProvider: used by TimetableExportManager to produce content:// URIs
+            for the exported timetable JSON files, so they can be shared via
+            Intent.ACTION_SEND without requiring WRITE_EXTERNAL_STORAGE permission.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_provider_paths" />
+        </provider>
     </application>
 
 </manifest>

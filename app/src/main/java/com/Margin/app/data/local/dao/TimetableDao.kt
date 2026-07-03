@@ -21,6 +21,10 @@ interface TimetableDao {
     @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE subjects.sessionId = :sessionId ORDER BY dayOfWeek ASC, startTime ASC")
     fun getAllEntries(sessionId: String): Flow<List<TimetableEntity>>
 
+    /** One-shot version of getAllEntries — used by the export function. */
+    @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE subjects.sessionId = :sessionId ORDER BY dayOfWeek ASC, startTime ASC")
+    suspend fun getAllEntriesOnce(sessionId: String): List<TimetableEntity>
+
     @Query("SELECT * FROM timetable WHERE isSynced = 0")
     suspend fun getUnsyncedEntries(): List<TimetableEntity>
 

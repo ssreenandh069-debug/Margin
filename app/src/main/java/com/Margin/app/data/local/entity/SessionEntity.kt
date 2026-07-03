@@ -11,6 +11,7 @@ data class SessionEntity(
     val name: String,
     val startDate: Long,
     val isActive: Boolean = false,
+    val isCompleted: Boolean = false,
     val lastModified: Long = System.currentTimeMillis(),
     val isSynced: Boolean = false
 )

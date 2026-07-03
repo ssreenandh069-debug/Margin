@@ -16,6 +16,13 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE isSynced = 0")
     suspend fun getUnsyncedTasks(): List<TaskEntity>
 
+    /**
+     * All pending (not completed) tasks across ALL sessions, ordered by due date.
+     * Used by BootReceiver to reschedule alarms after device reboot.
+     */
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY dueDate ASC")
+    suspend fun getPendingTasks(): List<TaskEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: TaskEntity)
 
@@ -27,4 +34,15 @@ interface TaskDao {
 
     @Update
     suspend fun updateTask(task: TaskEntity)
+
+    /** Subject with most tasks in a session — Heaviest Workload analytic */
+    @Query("""
+        SELECT tasks.subjectId FROM tasks 
+        INNER JOIN subjects ON tasks.subjectId = subjects.id 
+        WHERE subjects.sessionId = :sessionId 
+        GROUP BY tasks.subjectId 
+        ORDER BY COUNT(tasks.id) DESC 
+        LIMIT 1
+    """)
+    suspend fun getHeaviestWorkloadSubjectId(sessionId: String): String?
 }

@@ -1,14 +1,28 @@
 # ── Android/Java ───────────────────────────────────────────────────────────
-.gradle/
-.navigation/
-build/
-app/build/
 *.class
 *.jar
 *.aar
+*.apk
+*.ap_
+*.aab
+*.dex
+*.dex.dex2jar.jar
 
-# ── Local Credentials ───────────────────────────────────────────────────────
+# ── Gradle/Build ──────────────────────────────────────────────────────────
+.gradle/
+build/
+app/build/
+/build/
+captures/
+.cxx/
+.externalNativeBuild/
+
+# ── Local Credentials & Keystores (CRITICAL FOR SECURITY) ────────────────
 local.properties
+*.keystore
+*.jks
+keystore.properties
+google-services.json
 
 # ── IDEs ──────────────────────────────────────────────────────────────────
 .idea/
@@ -16,20 +30,19 @@ local.properties
 *.ipr
 *.iws
 .vscode/
+.navigation/
 
 # ── Kotlin ────────────────────────────────────────────────────────────────
 .kotlin/
-captures/
 
 # ── OS Generated ────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+ehthumbs.db
+$RECYCLE.BIN/
 
-# ── Other ──────────────────────────────────────────────────────────────────
+# ── Custom App Exclusions ──────────────────────────────────────────────────
 theme_fix.py
-*.apk
-*.ap_
-*.dex
 *.db-journal
 *.db-shm
 *.db-wal

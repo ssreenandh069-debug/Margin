@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.Margin.app.data.local.entity.TaskEntity
 import com.Margin.app.receivers.TaskAlarmReceiver
 import java.util.Calendar
@@ -122,7 +123,19 @@ object NotificationScheduler {
             context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+
+        // Android 12+ (API 31) introduced canScheduleExactAlarms().
+        // On Android 14+, SCHEDULE_EXACT_ALARM can be revoked by the user at any time.
+        // Calling setExactAndAllowWhileIdle() without this check throws SecurityException.
+        val canUseExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                          alarmManager.canScheduleExactAlarms()
+
+        if (canUseExact) {
+            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        } else {
+            // Graceful fallback: inexact alarm (±few minutes is acceptable for reminders)
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        }
     }
 
     private fun cancelAlarm(context: Context, alarmManager: AlarmManager, requestCode: Int) {

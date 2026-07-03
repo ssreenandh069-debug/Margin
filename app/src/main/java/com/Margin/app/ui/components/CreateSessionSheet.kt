@@ -10,12 +10,19 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.Margin.app.ui.theme.*
 import com.Margin.app.ui.viewmodel.SessionViewModel
 import com.Margin.app.utils.getAppViewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import android.net.Uri
+import android.widget.Toast
+import com.Margin.app.utils.TimetableExportManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,6 +44,35 @@ fun CreateSessionSheet(
     var startDate by remember { mutableStateOf(System.currentTimeMillis()) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = startDate)
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+
+    var importedSlots by remember { mutableStateOf<List<Triple<String, Int, String>>>(emptyList()) }
+    val context = LocalContext.current
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val stream = context.contentResolver.openInputStream(it) ?: return@let
+                stream.use { s ->
+                    when (val result = TimetableExportManager.parseFromStream(s)) {
+                        is TimetableExportManager.ParseResult.Success -> {
+                            sessionName = result.sessionName
+                            subjectCount = result.subjects.size.toFloat()
+                            subjectInputs = result.subjects.map { pair -> SubjectInput(code = pair.first, name = pair.second) }
+                            importedSlots = result.slots
+                            Toast.makeText(context, "Imported ${result.subjects.size} subjects and ${result.slots.size} classes", Toast.LENGTH_SHORT).show()
+                        }
+                        is TimetableExportManager.ParseResult.Failure -> {
+                            Toast.makeText(context, "Import failed: ${result.reason}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -62,13 +98,28 @@ fun CreateSessionSheet(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header text logic
-            Column {
-                Text("Create Semester", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
-                Text(
-                    "Add a new academic term and define its subjects.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Create Semester", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Add a new academic term and define its subjects.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = {
+                    importLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
+                }) {
+                    Icon(
+                        Icons.Filled.FileDownload,
+                        contentDescription = "Import JSON",
+                        tint = NeonTeal
+                    )
+                }
             }
 
             // Session name field
@@ -202,7 +253,7 @@ fun CreateSessionSheet(
                     onClick = {
                         if (canCreate) {
                             val payload = subjectInputs.map { Pair(it.code, it.name) }
-                            viewModel.createSession(sessionName, startDate, payload)
+                            viewModel.createSessionWithTimetable(sessionName, startDate, payload, importedSlots)
                             onDismiss()
                         }
                     },

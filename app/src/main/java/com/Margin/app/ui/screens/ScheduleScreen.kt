@@ -27,9 +27,22 @@ fun ScheduleScreen(
     viewModel: TimetableViewModel = getAppViewModel()
 ) {
     val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri")
-    var selectedDay by remember { mutableStateOf(2) } // Wednesday default
+    var selectedDay by remember { 
+        mutableStateOf(
+            java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK).let { dayOfWeek ->
+                when (dayOfWeek) {
+                    java.util.Calendar.MONDAY -> 0
+                    java.util.Calendar.TUESDAY -> 1
+                    java.util.Calendar.WEDNESDAY -> 2
+                    java.util.Calendar.THURSDAY -> 3
+                    java.util.Calendar.FRIDAY -> 4
+                    else -> 0 // Default to Monday for weekends
+                }
+            }
+        ) 
+    }
     
-    val currentDayStr = days.getOrNull(selectedDay) ?: "Wed"
+    val currentDayStr = days.getOrNull(selectedDay) ?: "Mon"
     val scheduleFlow = remember(currentDayStr) {
         viewModel.getTimetableForDay(currentDayStr)
     }

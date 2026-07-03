@@ -113,11 +113,7 @@ class TaskViewModel(
             val subjectId = actualSubject?.id ?: return@launch
             val subjectName = actualSubject.name
 
-            val type = when {
-                typeString.contains("Assign", ignoreCase = true) -> "ASSIGNMENT"
-                typeString.contains("Present", ignoreCase = true) -> "PRESENTATION"
-                else -> "PRACTICAL"
-            }
+            val type = typeString.trim().uppercase().replace(' ', '_')
             repository.addTask(title, type, subjectId, dueDate) // we need to save hasReminder in DB if schema supports it, for now we schedule it instantly
 
             if (hasReminder && context != null) {

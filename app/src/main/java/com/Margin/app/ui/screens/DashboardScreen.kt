@@ -19,14 +19,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.Margin.app.ui.components.AddTaskSheet
-import com.Margin.app.ui.components.CreateSessionSheet
 import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.AnalyticsUiState
 import com.Margin.app.ui.viewmodel.SessionViewModel
-import com.Margin.app.ui.viewmodel.TaskListState
 import com.Margin.app.ui.viewmodel.TaskViewModel
 import com.Margin.app.utils.getAppViewModel
 
-data class DashboardTaskOverview(val label: String, val count: Int, val colorType: String)
 
 data class DashboardSubjectOverview(
     val id: String,
@@ -44,48 +42,29 @@ fun DashboardScreen(
     isDarkTheme: Boolean = true,
     onToggleTheme: () -> Unit = {},
     onOpenSessions: () -> Unit = {},
-    onOpenAssignments: () -> Unit = {},
-    onOpenPresentations: () -> Unit = {},
-    onOpenPracticals: () -> Unit = {},
+    onOpenTaskType: (String) -> Unit = {},
     onOpenTimetable: () -> Unit = {},
     sessionViewModel: SessionViewModel = getAppViewModel(),
     taskViewModel: TaskViewModel = getAppViewModel()
 ) {
-    var selectedPeriod by remember { mutableStateOf(0) } // 0=Month, 1=Semester
-    var showCreateSession by remember { mutableStateOf(false) }
     var showAddTask by remember { mutableStateOf(false) }
+
+    val isMonthView by sessionViewModel.isMonthView.collectAsState()
 
     val activeSession by sessionViewModel.activeSession.collectAsState()
     val subjects by sessionViewModel.activeSubjects.collectAsState()
 
-    val assignmentsState by taskViewModel.getTasks("ASSIGNMENT").collectAsState()
-    val presentationsState by taskViewModel.getTasks("PRESENTATION").collectAsState()
-    val practicalsState by taskViewModel.getTasks("PRACTICAL").collectAsState()
-
-    val assignments = (assignmentsState as? TaskListState.Success)?.tasks ?: emptyList()
-    val presentations = (presentationsState as? TaskListState.Success)?.tasks ?: emptyList()
-    val practicals = (practicalsState as? TaskListState.Success)?.tasks ?: emptyList()
-
-    val pendingAssignments = assignments.count { !it.isCompleted }
-    val pendingPresentations = presentations.count { !it.isCompleted }
-    val pendingPracticals = practicals.count { !it.isCompleted }
-
-    val computedPendingTasks = listOf(
-        DashboardTaskOverview(label = "Assignments", count = pendingAssignments, colorType = "blue"),
-        DashboardTaskOverview(label = "Presentations", count = pendingPresentations, colorType = "pink"),
-        DashboardTaskOverview(label = "Practical Files", count = pendingPracticals, colorType = "yellow")
-    ).filter { it.count > 0 }
-
-    val isLoadingTasks = assignmentsState is TaskListState.Loading || 
-                         presentationsState is TaskListState.Loading || 
-                         practicalsState is TaskListState.Loading
+    val pendingWorkCounts by taskViewModel.pendingWorkCounts.collectAsState()
 
     val overallAttendance by sessionViewModel.overallAttendanceProgress.collectAsState()
     val totalClasses by sessionViewModel.totalTrackedClasses.collectAsState()
     val presentClasses by sessionViewModel.totalPresentClasses.collectAsState()
     val subjectList by sessionViewModel.dashboardSubjects.collectAsState()
 
+    val analytics by sessionViewModel.analyticsState.collectAsState()
+
     val currentSemesterName = activeSession?.name ?: "No Active Session"
+    val isCompleted = activeSession?.isCompleted ?: false
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         LazyColumn(
@@ -185,13 +164,13 @@ fun DashboardScreen(
                                         .padding(4.dp)
                                 ) {
                                     listOf("Month", "Semester").forEachIndexed { idx, label ->
-                                        val selected = selectedPeriod == idx
+                                        val selected = (idx == 0) == isMonthView
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(9.dp))
                                                 .background(if (selected) NeonTeal else Color.Transparent)
-                                                .clickable { selectedPeriod = idx }
+                                                .clickable { sessionViewModel.setMonthView(idx == 0) }
                                                 .padding(vertical = 8.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -276,31 +255,48 @@ fun DashboardScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
-                    if (isLoadingTasks) {
-                        Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = NeonTeal, modifier = Modifier.size(24.dp))
-                        }
-                    } else if (computedPendingTasks.isEmpty()) {
+                    if (pendingWorkCounts.isEmpty()) {
                         Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                             Text("No pending tasks!", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     } else {
+                        val entries = pendingWorkCounts.entries.toList()
                         Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                            computedPendingTasks.forEachIndexed { idx, task ->
-                                val (color, alpha, icon) = when (task.colorType) {
-                                    "pink" -> Triple(Magenta, MagentaAlpha20, Icons.Filled.Slideshow)
-                                    "blue" -> Triple(BlueAccent, BlueAlpha20, Icons.Filled.Assignment)
-                                    else -> Triple(Yellow, YellowAlpha20, Icons.Filled.MenuBook)
+                            entries.forEachIndexed { idx, (taskType, count) ->
+                                val color = when (taskType) {
+                                    "ASSIGNMENT"     -> BlueAccent
+                                    "PRESENTATION"   -> Magenta
+                                    "PRACTICAL"      -> Yellow
+                                    "STUDY_GOAL"     -> AttendGreen
+                                    else             -> MaterialTheme.colorScheme.outlineVariant
                                 }
-                                val taskNav: () -> Unit = when (task.colorType) {
-                                    "pink" -> onOpenPresentations
-                                    "blue" -> onOpenAssignments
-                                    else   -> onOpenPracticals
+                                val alpha = when (taskType) {
+                                    "ASSIGNMENT"     -> BlueAlpha20
+                                    "PRESENTATION"   -> MagentaAlpha20
+                                    "PRACTICAL"      -> YellowAlpha20
+                                    "STUDY_GOAL"     -> NeonTealAlpha20
+                                    else             -> MaterialTheme.colorScheme.outline
                                 }
+                                val icon = when (taskType) {
+                                    "ASSIGNMENT"     -> Icons.Filled.Assignment
+                                    "PRESENTATION"   -> Icons.Filled.Slideshow
+                                    "PRACTICAL"      -> Icons.Filled.MenuBook
+                                    "STUDY_GOAL"     -> Icons.Filled.AutoGraph
+                                    else             -> Icons.Filled.Folder
+                                }
+                                val label = when (taskType) {
+                                    "ASSIGNMENT"     -> "Assignments"
+                                    "PRESENTATION"   -> "Presentations"
+                                    "PRACTICAL"      -> "Practical Files"
+                                    "STUDY_GOAL"     -> "Study Goals"
+                                    else             -> taskType.replace('_', ' ').lowercase()
+                                        .replaceFirstChar { it.uppercase() }
+                                }
+                                // Navigate using the exact type string from DB — no mapping needed
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { taskNav() }
+                                        .clickable { onOpenTaskType(taskType) }
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -313,19 +309,19 @@ fun DashboardScreen(
                                         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
                                     }
                                     Spacer(Modifier.width(14.dp))
-                                    Text(task.label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+                                    Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
                                     Box(
                                         modifier = Modifier
                                             .size(24.dp)
                                             .background(color, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text("${task.count}", color = MaterialTheme.colorScheme.background, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Text("$count", color = MaterialTheme.colorScheme.background, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(16.dp))
                                 }
-                                if (idx < computedPendingTasks.lastIndex) {
+                                if (idx < entries.lastIndex) {
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp, modifier = Modifier.padding(horizontal = 16.dp))
                                 }
                             }
@@ -352,40 +348,36 @@ fun DashboardScreen(
             items(subjectList, key = { it.id }) { subject ->
                 SubjectProgressRow(subject)
             }
+
+            item {
+                // ── Analytics Card ───────────────────────────────
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Analytics",
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                AnalyticsCard(analytics)
+            }
         }
 
-        // ── FAB ────────────────────────────────────────────────
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 20.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            SmallFloatingActionButton(
+        // ── FAB (hidden when session archived) ─────────────────
+        if (!isCompleted) {
+            FloatingActionButton(
                 onClick = { showAddTask = true },
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = Yellow,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add Task")
-            }
-            ExtendedFloatingActionButton(
-                onClick = { showCreateSession = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = 20.dp),
                 containerColor = NeonTeal,
                 contentColor = Color(0xFF003D35),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Icon(Icons.Filled.CloudUpload, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Save to Cloud", fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.Add, contentDescription = "Add Task")
             }
         }
     }
 
-    if (showCreateSession) {
-        CreateSessionSheet(onDismiss = { showCreateSession = false })
-    }
     if (showAddTask) {
         AddTaskSheet(onDismiss = { showAddTask = false })
     }
@@ -447,5 +439,76 @@ private fun SubjectProgressRow(subject: DashboardSubjectOverview) {
                 color = MaterialTheme.colorScheme.outlineVariant
             )
         }
+    }
+}
+
+@Composable
+private fun AnalyticsCard(analytics: AnalyticsUiState) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Total Bunks
+            AnalyticRow(
+                icon   = Icons.Filled.Close,
+                color  = AttendRed,
+                label  = "Total Bunks",
+                value  = "${analytics.totalBunks}"
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp)
+            // Wall of Shame
+            AnalyticRow(
+                icon   = Icons.Filled.EmojiEvents,
+                color  = AttendOrange,
+                label  = "Wall of Shame",
+                value  = analytics.mostBunkedSubjectName ?: "—"
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp)
+            // Heaviest Workload
+            AnalyticRow(
+                icon   = Icons.Filled.FitnessCenter,
+                color  = Magenta,
+                label  = "Heaviest Workload",
+                value  = analytics.heaviestWorkloadSubjectName ?: "—"
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp)
+            // Safe Bunks Left
+            AnalyticRow(
+                icon   = Icons.Filled.Shield,
+                color  = if (analytics.safeBunksLeft > 0) AttendGreen else AttendRed,
+                label  = "Safe Bunks Left",
+                value  = "${analytics.safeBunksLeft}"
+            )
+        }
+    }
+}
+
+@Composable
+private fun AnalyticRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    label: String,
+    value: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(color.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = color)
     }
 }

@@ -1,5 +1,9 @@
 package com.Margin.app.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,14 +18,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.Margin.app.ui.components.AddClassSheet
 import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.viewmodel.ImportResult
 import com.Margin.app.ui.viewmodel.TimetableUiState
 import com.Margin.app.ui.viewmodel.TimetableViewModel
 import com.Margin.app.utils.getAppViewModel
+import kotlinx.coroutines.launch
 
 // Cycles through distinct colors per subject code for visual variety
 private val subjectColors = listOf(NeonTeal, Magenta, Yellow, BlueAccent, PurpleAccent, AttendOrange)
@@ -35,135 +42,180 @@ fun TimetableScreen(
     onBack: () -> Unit = {},
     viewModel: TimetableViewModel = getAppViewModel()
 ) {
-    var selectedDay by remember { mutableStateOf("Mon") }
+    var selectedDay  by remember { mutableStateOf("Mon") }
     var showAddClass by remember { mutableStateOf(false) }
+
+    val context      = LocalContext.current
+    val scope        = rememberCoroutineScope()
+    val snackbarHost = remember { SnackbarHostState() }
 
     val entries by viewModel.getTimetableForDay(selectedDay).collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // ── Top Bar ───────────────────────────────────────────
-        Row(
+    // ── File picker launcher (for import) ─────────────────────────────────────
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { viewModel.importTimetableFromUri(context, it) }
+    }
+
+    // ── Observe import result and show snackbar ───────────────────────────────
+    val importResult by viewModel.importResult.collectAsState()
+    LaunchedEffect(importResult) {
+        importResult ?: return@LaunchedEffect
+        val message = when (val r = importResult) {
+            is ImportResult.Success ->
+                "✓ Imported \"${r.sessionName}\" — ${r.subjectCount} subjects, ${r.slotCount} slots"
+            is ImportResult.Failure -> "Import failed: ${r.reason}"
+            null -> return@LaunchedEffect
+        }
+        scope.launch { snackbarHost.showSnackbar(message, duration = SnackbarDuration.Long) }
+        viewModel.clearImportResult()
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { padding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 8.dp, end = 16.dp, top = 20.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(padding)
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Timetable", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
-                Text("Configure your weekly schedule", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            TextButton(
-                onClick = { /* Save action */ },
-                colors = ButtonDefaults.textButtonColors(contentColor = NeonTeal)
+            // ── Top Bar ───────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Save", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        }
-
-        // ── Day Chips ─────────────────────────────────────────
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(vertical = 10.dp)
-        ) {
-            item {
-                timetableDays.forEach { day ->
-                    val isSelected = day == selectedDay
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isSelected) NeonTeal else MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, if (isSelected) NeonTeal else MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
-                            .clickable { selectedDay = day }
-                            .padding(horizontal = 20.dp, vertical = 11.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            day,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) Color(0xFF003D35) else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
                 }
-            }
-        }
-
-        // ── Class List for selected day ───────────────────────
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (entries.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.EventBusy, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(52.dp))
-                            Spacer(Modifier.height(12.dp))
-                            Text("No classes on $selectedDay", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outlineVariant)
-                        }
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Timetable", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+                    Text("Configure your weekly schedule", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            } else {
-                items(items = entries, key = { it.id }) { entry ->
-                    TimetableClassCard(
-                        entry = entry,
-                        onDelete = { viewModel.removeClass(entry.id) }
+
+                // ── Import button ────────────────────────────────
+                IconButton(onClick = {
+                    importLauncher.launch(arrayOf("application/json", "application/octet-stream", "*/*"))
+                }) {
+                    Icon(
+                        Icons.Filled.FileDownload,
+                        contentDescription = "Import Timetable",
+                        tint = NeonTeal
+                    )
+                }
+
+                // ── Export / Share button ────────────────────────
+                IconButton(onClick = { viewModel.exportTimetable(context) }) {
+                    Icon(
+                        Icons.Filled.Share,
+                        contentDescription = "Share Timetable",
+                        tint = NeonTeal
                     )
                 }
             }
 
-            // Add Class button
-            item {
-                TextButton(
-                    onClick = { showAddClass = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = NeonTeal, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add Class", color = NeonTeal, fontWeight = FontWeight.SemiBold)
+            // ── Day Chips ─────────────────────────────────────────
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(vertical = 10.dp)
+            ) {
+                item {
+                    timetableDays.forEach { day ->
+                        val isSelected = day == selectedDay
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isSelected) NeonTeal else MaterialTheme.colorScheme.surfaceVariant)
+                                .border(1.dp, if (isSelected) NeonTeal else MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp))
+                                .clickable { selectedDay = day }
+                                .padding(horizontal = 20.dp, vertical = 11.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                day,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color(0xFF003D35) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 14.sp
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                    }
                 }
             }
-        }
 
-        // ── Week Overview ─────────────────────────────────────
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 0.dp
-        ) {
-            Column(modifier = Modifier.padding(top = 12.dp, bottom = 16.dp, start = 16.dp, end = 16.dp)) {
-                Text(
-                    "Week Overview",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 10.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    timetableDays.forEach { day ->
-                        DayOverviewItem(
-                            day = day,
-                            selectedDay = selectedDay,
-                            viewModel = viewModel,
-                            onSelect = { selectedDay = day }
+            // ── Class List for selected day ───────────────────────
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (entries.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Filled.EventBusy, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(52.dp))
+                                Spacer(Modifier.height(12.dp))
+                                Text("No classes on $selectedDay", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.outlineVariant)
+                            }
+                        }
+                    }
+                } else {
+                    items(items = entries, key = { it.id }) { entry ->
+                        TimetableClassCard(
+                            entry = entry,
+                            onDelete = { viewModel.removeClass(entry.id) }
                         )
+                    }
+                }
+
+                // Add Class button
+                item {
+                    TextButton(
+                        onClick = { showAddClass = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, tint = NeonTeal, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Add Class", color = NeonTeal, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            // ── Week Overview ─────────────────────────────────────
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 0.dp
+            ) {
+                Column(modifier = Modifier.padding(top = 12.dp, bottom = 16.dp, start = 16.dp, end = 16.dp)) {
+                    Text(
+                        "Week Overview",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        timetableDays.forEach { day ->
+                            DayOverviewItem(
+                                day = day,
+                                selectedDay = selectedDay,
+                                viewModel = viewModel,
+                                onSelect = { selectedDay = day }
+                            )
+                        }
                     }
                 }
             }

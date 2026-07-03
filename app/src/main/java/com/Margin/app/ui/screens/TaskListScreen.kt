@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.Margin.app.data.TaskType
 import com.Margin.app.ui.components.AddTaskSheet
 import com.Margin.app.ui.theme.*
+import com.Margin.app.ui.theme.TextSecondary
 import com.Margin.app.ui.viewmodel.TaskListState
 import com.Margin.app.ui.viewmodel.TaskUiState
 import com.Margin.app.ui.viewmodel.TaskViewModel
@@ -31,11 +32,15 @@ fun taskAccentColor(type: TaskType): Color = when (type) {
     TaskType.ASSIGNMENT   -> BlueAccent
     TaskType.PRESENTATION -> Magenta
     TaskType.PRACTICAL    -> Yellow
+    TaskType.STUDY_GOAL   -> AttendGreen
+    TaskType.OTHER        -> TextSecondary
 }
 fun taskAccentAlpha(type: TaskType): Color = when (type) {
     TaskType.ASSIGNMENT   -> BlueAlpha20
     TaskType.PRESENTATION -> MagentaAlpha20
     TaskType.PRACTICAL    -> YellowAlpha20
+    TaskType.STUDY_GOAL   -> NeonTealAlpha20
+    TaskType.OTHER        -> TextSecondary.copy(alpha = 0.15f)
 }
 
 enum class TaskFilter { ALL, PENDING, COMPLETED }
@@ -54,6 +59,8 @@ fun TaskListScreen(
         TaskType.ASSIGNMENT   -> "Assignments"
         TaskType.PRESENTATION -> "Presentations"
         TaskType.PRACTICAL    -> "Practical Files"
+        TaskType.STUDY_GOAL   -> "Study Goals"
+        TaskType.OTHER        -> "Other Tasks"
     }
 
     val typeString = taskType.name // "ASSIGNMENT", "PRESENTATION", "PRACTICAL"

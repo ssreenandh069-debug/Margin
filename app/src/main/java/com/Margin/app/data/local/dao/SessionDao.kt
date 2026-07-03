@@ -28,6 +28,9 @@ interface SessionDao {
     @Query("UPDATE sessions SET isActive = 1, lastModified = :ts, isSynced = 0 WHERE id = :id")
     suspend fun setActive(id: String, ts: Long = System.currentTimeMillis())
 
+    @Query("UPDATE sessions SET isCompleted = 1, isActive = 0, lastModified = :ts WHERE id = :id")
+    suspend fun setCompleted(id: String, ts: Long = System.currentTimeMillis())
+
     @Delete
     suspend fun deleteSession(session: SessionEntity)
 
