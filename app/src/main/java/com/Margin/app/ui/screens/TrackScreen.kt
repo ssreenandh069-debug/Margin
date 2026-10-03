@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.Margin.app.domain.AttendanceMath
 import com.Margin.app.ui.components.CreateSessionSheet
 import com.Margin.app.ui.components.ExtraDutySheet
+import com.Margin.app.ui.components.InteractiveCalendarSheet
 import com.Margin.app.ui.components.LogSeminarSheet
 import com.Margin.app.ui.components.SemesterOverviewSheet
 import com.Margin.app.ui.components.SwapClassSheet
@@ -67,23 +68,13 @@ fun TrackScreen(
     val cancelledCount = todayClasses.count { it.status == "CANCELLED" }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = AttendanceMath.localToUtcMidnight(selectedDate)
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let {
-                        viewModel.selectDate(AttendanceMath.utcToLocalMidnight(it))
-                    }
-                    showDatePicker = false
-                }) { Text("OK", color = NeonTeal) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+        InteractiveCalendarSheet(
+            onDismiss = { showDatePicker = false },
+            viewModel = viewModel,
+            onDateSelected = { dateMs ->
+                viewModel.selectDate(dateMs)
             }
-        ) { DatePicker(state = datePickerState) }
+        )
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

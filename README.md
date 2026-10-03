@@ -37,6 +37,11 @@
   - Directly accessible from the **Remind** tab ("All Subjects" view) and Semester Overview sheet.
   - 1-tap `+ Present`, `- Bunk`, and `Undo` buttons for effortless daily adjustments.
   - Live "Wall of Shame" (most bunked subject) and "Heavy Load" (most deliverables) indicators.
+- **Interactive Attendance Calendar Sheet**:
+  - Zero-dependency, native Compose calendar replacing the generic system DatePicker dialog.
+  - Multi-status heatmap dots under each date: 🟢 Attended, 🔴 Bunk, 🟣 Seminar / Event, 🟡 Duty, ⚪ Day Off.
+  - Monthly health pill displaying real-time monthly percentage, classes attended, and bunks.
+  - Selected day snapshot preview with 1-tap jump into the Time Machine.
 - **Attendance Time Machine**:
   - Date navigator with timezone-safe UTC $\leftrightarrow$ Local midnight conversion.
   - Quick action tracking: `Present`, `Bunk`, `Cancelled / Off`, `Proxy`, and `Duty Attendance`.

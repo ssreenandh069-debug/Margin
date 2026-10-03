@@ -69,6 +69,9 @@ class AttendanceRepository(private val db: AppDatabase) {
     fun recordsForDateFlow(date: Long): Flow<List<AttendanceRecordEntity>> =
         attendanceDao.getRecordsByDate(date)
 
+    fun recordsInRangeFlow(startMs: Long, endMs: Long): Flow<List<AttendanceRecordEntity>> =
+        attendanceDao.getRecordsInRange(startMs, endMs)
+
     fun recordsForSubjectFlow(subjectId: String): Flow<List<AttendanceRecordEntity>> =
         attendanceDao.getRecordsBySubject(subjectId)
 

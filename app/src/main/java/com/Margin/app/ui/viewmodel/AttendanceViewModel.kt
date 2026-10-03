@@ -309,6 +309,8 @@ class AttendanceViewModel(
 
     fun dutyRecordsFlow(subjectId: String) = repository.dutyRecordsFlow(subjectId)
 
+    fun recordsInRangeFlow(startMs: Long, endMs: Long) = repository.recordsInRangeFlow(startMs, endMs)
+
     fun addDutyRecord(subjectId: String, dateMs: Long, status: String) {
         viewModelScope.launch {
             repository.addDutyRecord(subjectId, dateMs, status)

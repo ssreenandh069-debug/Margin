@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -1290,3 +1291,398 @@ fun LogSeminarSheet(
         }
     }
 }
+
+// ── INTERACTIVE & INFORMATIVE CALENDAR SHEET ──────────────────────────────────
+
+private fun isSameDay(ms1: Long, ms2: Long): Boolean {
+    val c1 = Calendar.getInstance().apply { timeInMillis = ms1 }
+    val c2 = Calendar.getInstance().apply { timeInMillis = ms2 }
+    return c1.get(Calendar.YEAR) == c2.get(Calendar.YEAR) &&
+           c1.get(Calendar.DAY_OF_YEAR) == c2.get(Calendar.DAY_OF_YEAR)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InteractiveCalendarSheet(
+    onDismiss: () -> Unit,
+    viewModel: AttendanceViewModel,
+    onDateSelected: (Long) -> Unit
+) {
+    val initialDate = viewModel.selectedDate.collectAsState().value
+    val initCal = remember(initialDate) { Calendar.getInstance().apply { timeInMillis = initialDate } }
+
+    var displayedYear by remember { mutableIntStateOf(initCal.get(Calendar.YEAR)) }
+    var displayedMonth by remember { mutableIntStateOf(initCal.get(Calendar.MONTH)) }
+    var pickedDateMs by remember { mutableLongStateOf(initialDate) }
+
+    val (monthStartMs, monthEndMs) = remember(displayedYear, displayedMonth) {
+        val start = Calendar.getInstance().apply {
+            set(displayedYear, displayedMonth, 1, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val end = Calendar.getInstance().apply {
+            set(displayedYear, displayedMonth, start.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59)
+            set(Calendar.MILLISECOND, 999)
+        }
+        Pair(start.timeInMillis, end.timeInMillis)
+    }
+
+    val monthRecords by viewModel.recordsInRangeFlow(monthStartMs, monthEndMs).collectAsState(initial = emptyList())
+
+    val dayRecordsMap = remember(monthRecords, displayedYear, displayedMonth) {
+        val map = mutableMapOf<Int, MutableList<AttendanceRecordEntity>>()
+        val cal = Calendar.getInstance()
+        monthRecords.forEach { rec ->
+            cal.timeInMillis = rec.date
+            if (cal.get(Calendar.YEAR) == displayedYear && cal.get(Calendar.MONTH) == displayedMonth) {
+                val day = cal.get(Calendar.DAY_OF_MONTH)
+                map.getOrPut(day) { mutableListOf() }.add(rec)
+            }
+        }
+        map
+    }
+
+    val (monthAttended, monthTotal, monthBunks) = remember(monthRecords) {
+        val valid = monthRecords.filter { it.status != "NONE" && it.status != "CANCELLED" }
+        val attended = valid.count { it.status == "PRESENT" || it.status == "DUTY" }
+        val bunks = valid.count { it.status == "BUNK" }
+        Triple(attended, attended + bunks, bunks)
+    }
+    val monthPct = if (monthTotal > 0) (monthAttended.toFloat() / monthTotal) * 100f else 100f
+
+    val monthTitle = remember(displayedYear, displayedMonth) {
+        val cal = Calendar.getInstance().apply { set(displayedYear, displayedMonth, 1) }
+        SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+    }
+
+    val daysInMonth = remember(displayedYear, displayedMonth) {
+        Calendar.getInstance().apply { set(displayedYear, displayedMonth, 1) }.getActualMaximum(Calendar.DAY_OF_MONTH)
+    }
+
+    val leadingEmpty = remember(displayedYear, displayedMonth) {
+        val firstDow = Calendar.getInstance().apply { set(displayedYear, displayedMonth, 1) }.get(Calendar.DAY_OF_WEEK)
+        // Calendar.SUNDAY = 1, MONDAY = 2 ... SATURDAY = 7
+        if (firstDow == Calendar.SUNDAY) 6 else firstDow - 2
+    }
+
+    val weekDaysShort = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+                .imePadding()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Month Navigation Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = {
+                    if (displayedMonth == 0) {
+                        displayedMonth = 11
+                        displayedYear -= 1
+                    } else {
+                        displayedMonth -= 1
+                    }
+                }) {
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous Month", tint = MaterialTheme.colorScheme.onBackground)
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(monthTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    Surface(
+                        color = (if (monthPct >= 75f) NeonTeal else AttendRed).copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = if (monthTotal > 0) {
+                                String.format(Locale.US, "%.1f%% • %d/%d classes • %d bunks", monthPct, monthAttended, monthTotal, monthBunks)
+                            } else {
+                                "No classes recorded yet"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (monthPct >= 75f) NeonTeal else AttendRed,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                IconButton(onClick = {
+                    if (displayedMonth == 11) {
+                        displayedMonth = 0
+                        displayedYear += 1
+                    } else {
+                        displayedMonth += 1
+                    }
+                }) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Next Month", tint = MaterialTheme.colorScheme.onBackground)
+                }
+            }
+
+            // Quick "Today" jump if not viewing today's month
+            val isCurrentMonth = remember(displayedYear, displayedMonth) {
+                val now = Calendar.getInstance()
+                now.get(Calendar.YEAR) == displayedYear && now.get(Calendar.MONTH) == displayedMonth
+            }
+            if (!isCurrentMonth) {
+                TextButton(
+                    onClick = {
+                        val now = Calendar.getInstance()
+                        displayedYear = now.get(Calendar.YEAR)
+                        displayedMonth = now.get(Calendar.MONTH)
+                        pickedDateMs = now.timeInMillis
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Icon(Icons.Filled.Today, contentDescription = null, tint = NeonTeal, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Jump to Current Month", color = NeonTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            // Weekday Headers (Mon - Sun)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                weekDaysShort.forEach { dayName ->
+                    Text(
+                        dayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (dayName in listOf("Sat", "Sun")) AttendOrange.copy(0.7f) else MaterialTheme.colorScheme.outlineVariant,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(38.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+
+            // Calendar Days Grid
+            val totalSlots = leadingEmpty + daysInMonth
+            val totalRows = (totalSlots + 6) / 7
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (rowIndex in 0 until totalRows) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                        for (colIndex in 0 until 7) {
+                            val slotIndex = rowIndex * 7 + colIndex
+                            val dayNum = slotIndex - leadingEmpty + 1
+
+                            if (dayNum in 1..daysInMonth) {
+                                val cellDateMs = remember(displayedYear, displayedMonth, dayNum) {
+                                    Calendar.getInstance().apply {
+                                        set(displayedYear, displayedMonth, dayNum, 0, 0, 0)
+                                        set(Calendar.MILLISECOND, 0)
+                                    }.timeInMillis
+                                }
+                                val isSelected = isSameDay(pickedDateMs, cellDateMs)
+                                val isToday = isSameDay(System.currentTimeMillis(), cellDateMs)
+
+                                val records = dayRecordsMap[dayNum] ?: emptyList()
+                                val hasPresent = records.any { it.status == "PRESENT" || it.status == "DUTY" }
+                                val hasBunk = records.any { it.status == "BUNK" }
+                                val hasExcused = records.any { it.status == "EXCUSED" }
+                                val hasDuty = records.any { it.status == "DUTY" || it.status == "DUTY_ABSENT" }
+                                val hasOff = records.any { it.status == "CANCELLED" }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            when {
+                                                isSelected -> NeonTeal
+                                                isToday -> NeonTealAlpha20
+                                                else -> Color.Transparent
+                                            }
+                                        )
+                                        .border(
+                                            width = if (isToday && !isSelected) 1.5.dp else if (isSelected) 0.dp else 0.5.dp,
+                                            color = when {
+                                                isToday && !isSelected -> NeonTeal
+                                                else -> Color.Transparent
+                                            },
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable { pickedDateMs = cellDateMs },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = "$dayNum",
+                                            fontSize = 13.sp,
+                                            fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                                            color = when {
+                                                isSelected -> Color(0xFF003D35)
+                                                isToday -> NeonTeal
+                                                else -> MaterialTheme.colorScheme.onBackground
+                                            }
+                                        )
+
+                                        // Status dots
+                                        if (records.isNotEmpty()) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                                modifier = Modifier.padding(top = 1.dp)
+                                            ) {
+                                                if (hasPresent) {
+                                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(if (isSelected) Color(0xFF003D35) else AttendGreen))
+                                                }
+                                                if (hasBunk) {
+                                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(if (isSelected) Color(0xFF700000) else AttendRed))
+                                                }
+                                                if (hasExcused) {
+                                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(PurpleAccent))
+                                                }
+                                                if (hasDuty && !hasPresent) {
+                                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(Yellow))
+                                                }
+                                                if (hasOff && !hasPresent && !hasBunk) {
+                                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(AttendGrey))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.size(38.dp))
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Attendance Heatmap Legend
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LegendDot("Present", AttendGreen)
+                LegendDot("Bunk", AttendRed)
+                LegendDot("Excused / Event", PurpleAccent)
+                LegendDot("Duty", Yellow)
+                LegendDot("Day Off", AttendGrey)
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp)
+
+            // Selected Day Preview Card
+            val pickedCal = remember(pickedDateMs) { Calendar.getInstance().apply { timeInMillis = pickedDateMs } }
+            val pickedDayNum = pickedCal.get(Calendar.DAY_OF_MONTH)
+            val pickedDayRecords = if (pickedCal.get(Calendar.YEAR) == displayedYear && pickedCal.get(Calendar.MONTH) == displayedMonth) {
+                dayRecordsMap[pickedDayNum] ?: emptyList()
+            } else {
+                emptyList()
+            }
+
+            val pickedDateFormatted = remember(pickedDateMs) {
+                SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault()).format(Date(pickedDateMs))
+            }
+            val isPickedToday = isSameDay(System.currentTimeMillis(), pickedDateMs)
+
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(pickedDateFormatted, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground)
+                                if (isPickedToday) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Surface(color = NeonTealAlpha20, shape = RoundedCornerShape(4.dp)) {
+                                        Text("Today", color = NeonTeal, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                                    }
+                                }
+                            }
+                            Text(
+                                if (pickedDayRecords.isNotEmpty()) "${pickedDayRecords.size} class record${if (pickedDayRecords.size > 1) "s" else ""} logged"
+                                else "No classes recorded for this date",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (pickedDayRecords.isNotEmpty()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val pCount = pickedDayRecords.count { it.status == "PRESENT" || it.status == "DUTY" }
+                            val bCount = pickedDayRecords.count { it.status == "BUNK" }
+                            val eCount = pickedDayRecords.count { it.status == "EXCUSED" }
+                            val oCount = pickedDayRecords.count { it.status == "CANCELLED" }
+
+                            if (pCount > 0) PillTag("$pCount Attended", AttendGreen)
+                            if (bCount > 0) PillTag("$bCount Bunked", AttendRed)
+                            if (eCount > 0) PillTag("$eCount Excused", PurpleAccent)
+                            if (oCount > 0) PillTag("$oCount Off", AttendGrey)
+                        }
+
+                        val notes = pickedDayRecords.mapNotNull { it.note.ifBlank { null } }.distinct()
+                        if (notes.isNotEmpty()) {
+                            notes.forEach { noteText ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(PurpleAlpha20).padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Filled.Info, contentDescription = null, tint = PurpleAccent, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(noteText, color = PurpleAccent, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            onDateSelected(pickedDateMs)
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(46.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = NeonTeal, contentColor = Color(0xFF003D35))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Jump to this Date in Time Machine", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendDot(label: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outlineVariant, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun PillTag(text: String, color: Color) {
+    Surface(color = color.copy(0.15f), shape = RoundedCornerShape(6.dp)) {
+        Text(text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+    }
+}
+

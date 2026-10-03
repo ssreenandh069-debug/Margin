@@ -77,6 +77,9 @@ interface AttendanceRecordDao {
     @Query("SELECT * FROM attendance_records WHERE date = :date")
     fun getRecordsByDate(date: Long): Flow<List<AttendanceRecordEntity>>
 
+    @Query("SELECT * FROM attendance_records WHERE date >= :startMs AND date <= :endMs")
+    fun getRecordsInRange(startMs: Long, endMs: Long): Flow<List<AttendanceRecordEntity>>
+
     @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId ORDER BY date DESC")
     fun getRecordsBySubject(subjectId: String): Flow<List<AttendanceRecordEntity>>
 
