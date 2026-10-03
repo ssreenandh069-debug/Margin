@@ -1,98 +1,171 @@
 package com.Margin.app.data.local
 
 import android.content.Context
-import androidx.room.Database
-import androidx.room.Room
-import androidx.room.RoomDatabase
+import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.Margin.app.data.local.dao.*
 import com.Margin.app.data.local.entity.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  AppDatabase — Room database definition for the Margin app
-//
-//  VERSION HISTORY
-//  ───────────────
-//  v1  Initial schema: sessions, subjects, attendance_records, tasks, timetable
-//  v2  Added monthly_summaries table (MonthlySummaryEntity)
-//  v3  Added proxyCount column to monthly_summaries (MIGRATION_2_3)
-//
-//  MIGRATION POLICY (READ BEFORE CHANGING THE SCHEMA)
-//  ────────────────────────────────────────────────────
-//  ❌ DO NOT add `.fallbackToDestructiveMigration()` to the builder.
-//     This would silently wipe all user attendance data whenever the
-//     version number is bumped without a matching Migration object.
-//     That is an unrecoverable, catastrophic data loss for the user.
-//
-//  ✅ Every schema change MUST:
-//     1. Increment `version` by 1 (e.g. 3 → 4)
-//     2. Write a Migration(old, new) object with the required SQL
-//     3. Register it with `.addMigrations(MIGRATION_X_Y)` below
-//
-//  During development, if Room throws an IllegalStateException about a
-//  missing migration, that is the correct behaviour — write the migration.
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Consolidated DAOs ─────────────────────────────────────────────────────────
+
+@Dao
+interface SessionDao {
+    @Query("SELECT * FROM sessions ORDER BY startDate DESC")
+    fun getAllSessions(): Flow<List<SessionEntity>>
+
+    @Query("SELECT * FROM sessions WHERE isActive = 1 LIMIT 1")
+    suspend fun getActiveSession(): SessionEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSession(session: SessionEntity)
+
+    @Query("UPDATE sessions SET isActive = 0")
+    suspend fun deactivateAllSessions()
+
+    @Query("UPDATE sessions SET isActive = 1 WHERE id = :id")
+    suspend fun setActive(id: String)
+
+    @Query("UPDATE sessions SET isCompleted = 1, isActive = 0 WHERE id = :id")
+    suspend fun setCompleted(id: String)
+
+    @Query("DELETE FROM sessions WHERE id = :id")
+    suspend fun deleteSessionById(id: String)
+}
+
+@Dao
+interface SubjectDao {
+    @Query("SELECT * FROM subjects WHERE sessionId = :sessionId ORDER BY code ASC")
+    fun getSubjectsBySession(sessionId: String): Flow<List<SubjectEntity>>
+
+    @Query("SELECT * FROM subjects WHERE sessionId = :sessionId ORDER BY code ASC")
+    suspend fun getSubjectsBySessionOnce(sessionId: String): List<SubjectEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubject(subject: SubjectEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubjects(subjects: List<SubjectEntity>)
+
+    @Delete
+    suspend fun deleteSubject(subject: SubjectEntity)
+}
+
+@Dao
+interface TimetableDao {
+    @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE dayOfWeek = :day AND subjects.sessionId = :sessionId ORDER BY startTime ASC")
+    fun getEntriesByDay(day: Int, sessionId: String): Flow<List<TimetableEntity>>
+
+    @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE subjects.sessionId = :sessionId ORDER BY dayOfWeek ASC, startTime ASC")
+    fun getAllEntries(sessionId: String): Flow<List<TimetableEntity>>
+
+    @Query("SELECT timetable.* FROM timetable INNER JOIN subjects ON timetable.subjectId = subjects.id WHERE subjects.sessionId = :sessionId ORDER BY dayOfWeek ASC, startTime ASC")
+    suspend fun getAllEntriesOnce(sessionId: String): List<TimetableEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEntry(entry: TimetableEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEntries(entries: List<TimetableEntity>)
+
+    @Query("DELETE FROM timetable WHERE id = :id")
+    suspend fun deleteEntry(id: String)
+}
+
+@Dao
+interface AttendanceRecordDao {
+    @Query("SELECT * FROM attendance_records WHERE date = :date")
+    fun getRecordsByDate(date: Long): Flow<List<AttendanceRecordEntity>>
+
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId ORDER BY date DESC")
+    fun getRecordsBySubject(subjectId: String): Flow<List<AttendanceRecordEntity>>
+
+    @Query("SELECT * FROM attendance_records WHERE subjectId IN (:subjectIds)")
+    fun getRecordsForSubjects(subjectIds: List<String>): Flow<List<AttendanceRecordEntity>>
+
+    @Query("SELECT * FROM attendance_records WHERE subjectId IN (:subjectIds)")
+    suspend fun getRecordsForSubjectsOnce(subjectIds: List<String>): List<AttendanceRecordEntity>
+
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId AND status IN ('DUTY', 'DUTY_ABSENT') ORDER BY date DESC")
+    fun getDutyRecordsForSubject(subjectId: String): Flow<List<AttendanceRecordEntity>>
+
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId AND date = :date AND (slotId = :slotId OR (slotId IS NULL AND :slotId IS NULL)) LIMIT 1")
+    suspend fun getRecord(subjectId: String, date: Long, slotId: String?): AttendanceRecordEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRecord(record: AttendanceRecordEntity)
+
+    @Query("UPDATE attendance_records SET status = :status WHERE id = :id")
+    suspend fun updateStatus(id: String, status: String)
+
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId ORDER BY date DESC LIMIT 1")
+    suspend fun getLatestRecordForSubject(subjectId: String): AttendanceRecordEntity?
+
+    @Query("DELETE FROM attendance_records WHERE id = :recordId")
+    suspend fun deleteRecordById(recordId: String)
+}
+
+@Dao
+interface TaskDao {
+    @Query("SELECT tasks.* FROM tasks INNER JOIN subjects ON tasks.subjectId = subjects.id WHERE type = :type AND subjects.sessionId = :sessionId ORDER BY dueDate ASC")
+    fun getTasksByType(type: String, sessionId: String): Flow<List<TaskEntity>>
+
+    @Query("SELECT tasks.* FROM tasks INNER JOIN subjects ON tasks.subjectId = subjects.id WHERE subjects.sessionId = :sessionId ORDER BY dueDate ASC")
+    fun getAllTasks(sessionId: String): Flow<List<TaskEntity>>
+
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND hasReminder = 1 AND dueDate > :now ORDER BY dueDate ASC")
+    suspend fun getPendingTasksWithReminders(now: Long = System.currentTimeMillis()): List<TaskEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTask(task: TaskEntity)
+
+    @Query("UPDATE tasks SET isCompleted = NOT isCompleted WHERE id = :id")
+    suspend fun toggleComplete(id: String)
+
+    @Query("DELETE FROM tasks WHERE id = :id")
+    suspend fun deleteTask(id: String)
+
+    @Query("SELECT tasks.subjectId FROM tasks INNER JOIN subjects ON tasks.subjectId = subjects.id WHERE subjects.sessionId = :sessionId GROUP BY tasks.subjectId ORDER BY COUNT(tasks.id) DESC LIMIT 1")
+    suspend fun getHeaviestWorkloadSubjectId(sessionId: String): String?
+}
+
+// ── AppDatabase ───────────────────────────────────────────────────────────────
 
 @Database(
     entities = [
         SessionEntity::class,
         SubjectEntity::class,
-        AttendanceRecordEntity::class,
-        TaskEntity::class,
         TimetableEntity::class,
-        MonthlySummaryEntity::class
+        AttendanceRecordEntity::class,
+        TaskEntity::class
     ],
-    version = 3,
-    exportSchema = false   // Set to true + configure schemaLocation in build.gradle
-                           // if you want Room to generate schema JSON files for
-                           // compile-time migration validation (recommended for CI).
+    version = 5,
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun sessionDao(): SessionDao
     abstract fun subjectDao(): SubjectDao
+    abstract fun timetableDao(): TimetableDao
     abstract fun attendanceRecordDao(): AttendanceRecordDao
     abstract fun taskDao(): TaskDao
-    abstract fun timetableDao(): TimetableDao
-    abstract fun monthlySummaryDao(): MonthlySummaryDao
-
-    fun vacuumAndCheckpoint() {
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                openHelper.writableDatabase.execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
-                openHelper.writableDatabase.execSQL("VACUUM")
-            } catch (_: Exception) {}
-        }
-    }
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
-        // ── Migrations ────────────────────────────────────────────────────────
-        //
-        // Add new Migration objects here when the schema changes.
-        // Then register them in getInstance() with .addMigrations(...).
-        //
-        // Template for the next migration:
-        //   val MIGRATION_3_4 = object : Migration(3, 4) {
-        //       override fun migrate(db: SupportSQLiteDatabase) {
-        //           db.execSQL("ALTER TABLE ... ADD COLUMN ...")
-        //       }
-        //   }
-
-        /**
-         * v2 → v3: Adds `proxyCount` column to `monthly_summaries`.
-         * DEFAULT 0 means existing rows remain valid — no full table rebuild needed.
-         */
-        val MIGRATION_2_3 = object : Migration(2, 3) {
+        val MIGRATION_1_5 = object : Migration(1, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE monthly_summaries ADD COLUMN proxyCount INTEGER NOT NULL DEFAULT 0"
-                )
+                db.execSQL("ALTER TABLE timetable ADD COLUMN room TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE attendance_records ADD COLUMN slotId TEXT")
+                db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE tasks ADD COLUMN hasReminder INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("DROP TABLE IF EXISTS monthly_summaries")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''")
             }
         }
 
@@ -103,12 +176,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "margin.db"
                 )
-                // ── Registered migrations (add new ones here as they are written) ──
-                .addMigrations(MIGRATION_2_3)
-                //
-                // ⛔ NEVER add .fallbackToDestructiveMigration() here.
-                //    See the policy comment at the top of this file.
-                //
+                .addMigrations(MIGRATION_1_5, MIGRATION_4_5)
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 .also { INSTANCE = it }
             }

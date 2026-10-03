@@ -8,7 +8,7 @@ import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.Margin.app.data.local.AppDatabase
-import kotlin.math.floor
+import com.Margin.app.domain.AttendanceMath
 
 class SmartBunkWorker(
     private val context: Context,
@@ -18,21 +18,13 @@ class SmartBunkWorker(
     override suspend fun doWork(): Result {
         return try {
             val db = AppDatabase.getInstance(context)
-
-            // Get active session
             val activeSession = db.sessionDao().getActiveSession() ?: return Result.success()
             val subjects = db.subjectDao().getSubjectsBySessionOnce(activeSession.id)
 
             if (subjects.isEmpty()) return Result.success()
 
-            val subjectIds = subjects.map { it.id }
-            val allRecords = db.attendanceRecordDao().getRecordsForSubjectsOnce(subjectIds)
+            val allRecords = db.attendanceRecordDao().getRecordsForSubjectsOnce(subjects.map { it.id })
 
-            // Aggregate across all subjects
-            // Status math (must match TrackViewModel / SessionViewModel):
-            //   attended = PRESENT | PROXY | DUTY
-            //   total    = PRESENT | PROXY | DUTY | BUNK | EXCUSED | DUTY_ABSENT
-            // Bug fix: previous code used "ABSENT" — the app uses "BUNK" for intentional skips.
             val attended = allRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY"
             }
@@ -43,20 +35,19 @@ class SmartBunkWorker(
 
             if (total == 0) return Result.success()
 
-            // The Margin Math™ — how many can you safely bunk?
-            val safeBunks = floor((attended - (0.75 * total)) / 0.25).toInt()
+            val safeBunks = AttendanceMath.calculateSafeBunks(attended, total)
 
             val notifTitle = "📊 Your Bunk Budget"
             val notifBody = when {
                 safeBunks >= 2 -> "You can safely bunk $safeBunks classes right now. Use them wisely! 🥷"
                 safeBunks == 1 -> "You have exactly 1 safe bunk left. Don't waste it! ⚠️"
-                else           -> "Thinking of bunking? Sike. Your attendance is too low. Get to class! 💀"
+                else           -> "Thinking of bunking? Your attendance is too low. Get to class! 💀"
             }
 
             sendNotification(notifTitle, notifBody)
             Result.success()
-        } catch (e: Exception) {
-            Result.retry()
+        } catch (_: Exception) {
+            Result.success()
         }
     }
 
@@ -81,7 +72,9 @@ class SmartBunkWorker(
             .setAutoCancel(true)
             .build()
 
-        notifManager.notify(NOTIF_ID, notification)
+        try {
+            notifManager.notify(NOTIF_ID, notification)
+        } catch (_: SecurityException) {}
     }
 
     companion object {

@@ -7,21 +7,21 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import com.Margin.app.reminders.TaskReminderManager
 
 class TaskAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val taskTitle = intent.getStringExtra("TASK_TITLE") ?: "Task Reminder"
-        val bodyText  = intent.getStringExtra("NOTIF_BODY")  ?: "You have an upcoming task due soon!"
-        val notifId   = intent.getIntExtra("NOTIF_ID", System.currentTimeMillis().toInt())
+        val taskTitle = intent.getStringExtra(TaskReminderManager.EXTRA_TASK_TITLE) ?: "Task Reminder"
+        val bodyText = intent.getStringExtra(TaskReminderManager.EXTRA_NOTIF_BODY) ?: "You have an upcoming task due soon!"
+        val notifId = intent.getIntExtra(TaskReminderManager.EXTRA_NOTIF_ID, System.currentTimeMillis().toInt())
 
         val channelId = "TASK_REMINDERS"
         val notifManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Ensure channel exists (safe to call multiple times)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             notifManager.createNotificationChannel(
                 NotificationChannel(channelId, "Task Reminders", NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "Aggressive reminders for upcoming tasks and assignments."
+                    description = "Deadlines and reminders for upcoming tasks."
                     enableVibration(true)
                 }
             )
@@ -36,6 +36,8 @@ class TaskAlarmReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .build()
 
-        notifManager.notify(notifId, notification)
+        try {
+            notifManager.notify(notifId, notification)
+        } catch (_: SecurityException) {}
     }
 }

@@ -22,6 +22,9 @@ local.properties
 *.keystore
 *.jks
 keystore.properties
+secrets.properties
+*.env
+*.env.*
 google-services.json
 
 # ── IDEs ──────────────────────────────────────────────────────────────────
@@ -34,6 +37,12 @@ google-services.json
 
 # ── Kotlin ────────────────────────────────────────────────────────────────
 .kotlin/
+
+# ── Logs & Temporary Files ────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*~
 
 # ── OS Generated ────────────────────────────────────────────────────────────
 .DS_Store

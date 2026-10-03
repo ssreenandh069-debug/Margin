@@ -1,155 +1,125 @@
 package com.Margin.app.ui.viewmodel
 
-import androidx.lifecycle.ViewModel
-import android.app.AlarmManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.Margin.app.data.local.AttendanceRepository
-import com.Margin.app.receivers.TaskAlarmReceiver
+import com.Margin.app.data.local.entity.SubjectEntity
+import com.Margin.app.data.local.entity.TaskEntity
+import com.Margin.app.data.local.entity.TaskType
+import com.Margin.app.domain.AttendanceMath
+import com.Margin.app.reminders.TaskReminderManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import android.os.Build
 
-data class TaskUiState(
+data class TaskUi(
     val id: String,
     val title: String,
-    val subjectName: String,
+    val subjectId: String,
     val subjectCode: String,
-    val type: String,
-    val dueDate: String,
-    val isOverdue: Boolean,
+    val subjectName: String,
+    val type: TaskType,
+    val dueDateMs: Long,
+    val dueDateFormatted: String,
     val isCompleted: Boolean,
+    val isOverdue: Boolean,
     val hasReminder: Boolean
 )
 
-sealed interface TaskListState {
-    object Loading : TaskListState
-    data class Success(val tasks: List<TaskUiState>) : TaskListState
-    object Empty : TaskListState
-}
-
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class TaskViewModel(
     private val repository: AttendanceRepository
 ) : ViewModel() {
 
-    private val activeSessionId = MutableStateFlow<String?>(null)
+    private val activeSession = repository.sessionsFlow.map { sessions ->
+        sessions.firstOrNull { it.isActive }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    init {
-        viewModelScope.launch {
-            repository.sessionsFlow.collect { sessions ->
-                activeSessionId.value = sessions.firstOrNull { it.isActive }?.id
-            }
+    val activeSessionId: StateFlow<String?> = activeSession.map { it?.id }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val subjects: StateFlow<List<SubjectEntity>> = activeSessionId.flatMapLatest { sessionId ->
+        if (sessionId == null) flowOf(emptyList()) else repository.subjectsFlow(sessionId)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allTasks: StateFlow<List<TaskUi>> = combine(
+        activeSessionId.flatMapLatest { sessionId ->
+            if (sessionId == null) flowOf(emptyList()) else repository.allTasksFlow(sessionId)
+        },
+        subjects
+    ) { tasks, subs ->
+        val now = System.currentTimeMillis()
+        tasks.map { task ->
+            val sub = subs.find { it.id == task.subjectId }
+            val code = sub?.code ?: "SUB"
+            val name = sub?.name ?: "Subject"
+            val isOverdue = !task.isCompleted && task.dueDate < now
+            val formattedDue = AttendanceMath.formatRelativeDueDate(task.dueDate)
+            val parsedType = TaskType.fromString(task.type)
+
+            TaskUi(
+                id = task.id,
+                title = task.title,
+                subjectId = task.subjectId,
+                subjectCode = code,
+                subjectName = name,
+                type = parsedType,
+                dueDateMs = task.dueDate,
+                dueDateFormatted = formattedDue,
+                isCompleted = task.isCompleted,
+                isOverdue = isOverdue,
+                hasReminder = task.hasReminder
+            )
         }
-    }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val subjectsFlow = activeSessionId.flatMapLatest { sessionId ->
-        if (sessionId == null) flowOf(emptyList())
-        else repository.subjectsFlow(sessionId)
-    }
-
-    private val cachedFlows = mutableMapOf<String, StateFlow<TaskListState>>()
-
-    fun getTasks(type: String): StateFlow<TaskListState> {
-        val typeUpper = type.uppercase()
-        return cachedFlows.getOrPut(typeUpper) {
-            activeSessionId.flatMapLatest { sessionId ->
-                if (sessionId == null) flowOf(TaskListState.Loading) else {
-                    val rawTasksFlow = if (typeUpper == "ALL") {
-                        repository.allTasksFlow(sessionId)
-                    } else {
-                        repository.tasksFlow(typeUpper, sessionId)
-                    }
-
-                    combine(rawTasksFlow, subjectsFlow) { tasks, subjects ->
-                        val now = System.currentTimeMillis()
-                        val mapped = tasks.mapNotNull { task ->
-                            val subject = subjects.find { it.id == task.subjectId } ?: return@mapNotNull null
-                            
-                            val isOverdue = task.dueDate < now
-                            
-                            TaskUiState(
-                                id = task.id,
-                                title = task.title,
-                                subjectName = subject.name,
-                                subjectCode = subject.code,
-                                type = task.type,
-                                dueDate = "Due soon", // simplified mapping for demo
-                                isOverdue = isOverdue,
-                                isCompleted = task.isCompleted,
-                                hasReminder = false
-                            )
-                        }
-                        if (mapped.isEmpty()) TaskListState.Empty else TaskListState.Success(mapped)
-                    }
-                }
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TaskListState.Loading)
-        }
-    }
-
-    val pendingWorkCounts = activeSessionId.flatMapLatest { sessionId ->
-        if (sessionId == null) flowOf(emptyMap()) else {
-            repository.allTasksFlow(sessionId).map { allTasks ->
-                allTasks.filter { !it.isCompleted }
-                    .groupBy { it.type }
-                    .mapValues { it.value.size }
-            }
-        }
+    val pendingWorkCounts: StateFlow<Map<String, Int>> = allTasks.map { tasks ->
+        tasks.filter { !it.isCompleted }
+            .groupBy { it.type.name }
+            .mapValues { it.value.size }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    fun toggleTaskComplete(taskId: String) {
+    fun addTask(
+        context: Context,
+        title: String,
+        type: String,
+        subjectId: String,
+        dueDate: Long,
+        hasReminder: Boolean
+    ) {
         viewModelScope.launch {
-            repository.toggleTaskComplete(taskId)
-        }
-    }
-
-    fun addTask(context: Context? = null, title: String, typeString: String, subjectCode: String, dueDate: Long = System.currentTimeMillis() + 86400000, hasReminder: Boolean = false) {
-        viewModelScope.launch {
-            val sessionId = activeSessionId.value ?: return@launch
-            val subjects = repository.getSubjectsBySessionOnce(sessionId)
-            val subjectStr = subjectCode.split(" ").firstOrNull() ?: ""
-            val actualSubject = subjects.find { it.code == subjectStr }
-            val subjectId = actualSubject?.id ?: return@launch
-            val subjectName = actualSubject.name
-
-            val type = typeString.trim().uppercase().replace(' ', '_')
-            repository.addTask(title, type, subjectId, dueDate) // we need to save hasReminder in DB if schema supports it, for now we schedule it instantly
-
-            if (hasReminder && context != null) {
-                scheduleTaskReminder(context, title, subjectName, dueDate - 86400000)
+            val task = repository.addTask(title, type, subjectId, dueDate, hasReminder)
+            if (hasReminder) {
+                val subjectName = subjects.value.find { it.id == subjectId }?.name
+                TaskReminderManager.scheduleTaskAlarms(context, task, subjectName)
             }
         }
     }
 
-    private fun scheduleTaskReminder(context: Context, title: String, subjectName: String, alarmTime: Long) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-            return
-        }
-
-        val intent = Intent(context, TaskAlarmReceiver::class.java).apply {
-            putExtra("title", title)
-            putExtra("SUBJECT_NAME", subjectName)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            (System.currentTimeMillis() % Int.MAX_VALUE).toInt(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        try {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent)
-        } catch (e: SecurityException) {
-            alarmManager.setWindow(AlarmManager.RTC_WAKEUP, alarmTime, 600000L, pendingIntent)
+    fun toggleTaskComplete(context: Context, task: TaskUi) {
+        viewModelScope.launch {
+            repository.toggleTaskComplete(task.id)
+            if (!task.isCompleted) {
+                TaskReminderManager.cancelTaskAlarms(context, task.id)
+            } else if (task.hasReminder) {
+                val entity = TaskEntity(
+                    id = task.id,
+                    subjectId = task.subjectId,
+                    title = task.title,
+                    type = task.type.name,
+                    dueDate = task.dueDateMs,
+                    isCompleted = false,
+                    hasReminder = true
+                )
+                TaskReminderManager.scheduleTaskAlarms(context, entity, task.subjectName)
+            }
         }
     }
 
-    fun deleteTask(taskId: String) {
+    fun deleteTask(context: Context, task: TaskUi) {
         viewModelScope.launch {
-            repository.deleteTask(taskId)
+            TaskReminderManager.cancelTaskAlarms(context, task.id)
+            repository.deleteTask(task.id)
         }
     }
 }
