@@ -95,6 +95,12 @@ interface AttendanceRecordDao {
     @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId AND date = :date AND (slotId = :slotId OR (slotId IS NULL AND :slotId IS NULL)) LIMIT 1")
     suspend fun getRecord(subjectId: String, date: Long, slotId: String?): AttendanceRecordEntity?
 
+    @Query("SELECT * FROM attendance_records WHERE date = :date AND slotId = :slotId")
+    suspend fun getRecordsBySlotAndDate(date: Long, slotId: String): List<AttendanceRecordEntity>
+
+    @Query("DELETE FROM attendance_records WHERE date = :date AND slotId = :slotId")
+    suspend fun deleteRecordsBySlotAndDate(date: Long, slotId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecord(record: AttendanceRecordEntity)
 

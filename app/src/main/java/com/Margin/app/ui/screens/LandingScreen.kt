@@ -249,7 +249,7 @@ fun LandingScreen(
                     Spacer(Modifier.height(6.dp))
 
                     Text(
-                        text = "Has someone in your class already entered the routine? Paste their Squad Sync code or import their timetable file instantly.",
+                        text = "Has someone in your class already entered the routine? Paste their Squad Sync code to sync your schedule in seconds.",
                         fontSize = 13.sp,
                         color = TextSecondary,
                         lineHeight = 18.sp
@@ -413,7 +413,8 @@ fun LandingScreen(
     if (showSquadSync) {
         SquadSyncSheet(
             onDismiss = { showSquadSync = false },
-            viewModel = viewModel
+            viewModel = viewModel,
+            initialTab = 1
         )
     }
 }

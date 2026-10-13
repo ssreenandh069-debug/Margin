@@ -1,8 +1,6 @@
 package com.Margin.app.ui.viewmodel
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.Margin.app.data.local.AttendanceRepository
@@ -120,15 +118,25 @@ class AttendanceViewModel(
         else repository.recordsForSubjectsFlow(subjects.map { it.id })
     }
 
+    private fun deduplicateRecords(records: List<com.Margin.app.data.local.entity.AttendanceRecordEntity>): List<com.Margin.app.data.local.entity.AttendanceRecordEntity> {
+        val slotted = records.filter { it.slotId != null }
+            .groupBy { Pair(it.date, it.slotId) }
+            .mapValues { it.value.last() }
+            .values
+        val nonSlotted = records.filter { it.slotId == null }
+        return slotted + nonSlotted
+    }
+
     val todayClasses: StateFlow<List<TodayClassUi>> = combine(
         todayTimetableFlow,
         activeSubjects,
         selectedDateRecordsFlow,
         allRecordsFlow
-    ) { timetable, subjects, dateRecords, allRecords ->
+    ) { timetable, subjects, dateRecords, rawRecords ->
+        val allRecords = deduplicateRecords(rawRecords)
         val sortedTimetable = timetable.sortedBy { AttendanceMath.parseTimeToMinutes(it.startTime) }
         sortedTimetable.map { entry ->
-            val record = dateRecords.find { it.slotId == entry.id }
+            val record = dateRecords.filter { it.slotId == entry.id }.lastOrNull()
             val status = record?.status ?: "NONE"
             val note = record?.note ?: ""
 
@@ -147,7 +155,7 @@ class AttendanceViewModel(
             }
             val total = subjectRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
+                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
                 it.status == "ABSENT"
             }
 
@@ -180,7 +188,8 @@ class AttendanceViewModel(
     val subjectOverviews: StateFlow<List<SubjectOverviewUi>> = combine(
         activeSubjects,
         allRecordsFlow
-    ) { subjects, records ->
+    ) { subjects, rawRecords ->
+        val records = deduplicateRecords(rawRecords)
         subjects.map { subject ->
             val subRecs = records.filter { it.subjectId == subject.id }
             val attended = subRecs.count {
@@ -188,7 +197,7 @@ class AttendanceViewModel(
             }
             val total = subRecs.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
+                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
                 it.status == "ABSENT"
             }
             val pct = AttendanceMath.calculatePercentage(attended, total)
@@ -219,7 +228,8 @@ class AttendanceViewModel(
         allRecordsFlow,
         activeSession,
         allTasksFlow
-    ) { overviews, records, session, tasks ->
+    ) { overviews, rawRecords, session, tasks ->
+        val records = deduplicateRecords(rawRecords)
         if (session == null || overviews.isEmpty()) {
             SemesterAnalyticsUi()
         } else {
@@ -422,54 +432,7 @@ class AttendanceViewModel(
         }
     }
 
-    fun exportTimetable(context: Context) {
-        viewModelScope.launch {
-            val sessionId = activeSessionId.value ?: return@launch
-            val session = repository.getActiveSession() ?: return@launch
-            val subjects = repository.getSubjectsBySessionOnce(sessionId)
-            val slots = repository.getAllTimetableEntriesOnce(sessionId)
-            if (subjects.isEmpty() && slots.isEmpty()) return@launch
 
-            val json = TimetableExportManager.toJson(session.name, subjects, slots)
-            val uri = TimetableExportManager.writeToShareableFile(context, json, session.name)
-            val intent = TimetableExportManager.buildShareIntent(uri, session.name)
-            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
-    }
-
-    fun importTimetableFromUri(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                val stream = context.contentResolver.openInputStream(uri)
-                if (stream == null) {
-                    onResult(false, "Could not open file.")
-                    return@launch
-                }
-                val parseResult = stream.use { TimetableExportManager.parseFromStream(it) }
-                when (parseResult) {
-                    is TimetableExportManager.ParseResult.Success -> {
-                        var sessionId = activeSessionId.value
-                        if (sessionId == null) {
-                            sessionId = repository.createSessionWithSubjects(
-                                name = parseResult.sessionName,
-                                startDate = todayMidnight(),
-                                subjects = parseResult.subjects,
-                                activate = true
-                            )
-                            userPrefs.saveActiveSessionId(sessionId)
-                        }
-                        repository.importTimetable(sessionId, parseResult.subjects, parseResult.slots)
-                        onResult(true, "Imported ${parseResult.slots.size} classes successfully!")
-                    }
-                    is TimetableExportManager.ParseResult.Failure -> {
-                        onResult(false, parseResult.reason)
-                    }
-                }
-            } catch (e: Exception) {
-                onResult(false, e.message ?: "Import failed")
-            }
-        }
-    }
 
     fun getSquadCode(onReady: (String) -> Unit) {
         viewModelScope.launch {

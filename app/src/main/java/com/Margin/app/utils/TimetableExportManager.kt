@@ -1,28 +1,24 @@
 package com.Margin.app.utils
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.util.Base64
-import androidx.core.content.FileProvider
 import com.Margin.app.data.local.entity.SubjectEntity
 import com.Margin.app.data.local.entity.TimetableEntity
 import com.Margin.app.domain.AttendanceMath
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
-import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Handles JSON and Squad Code serialization for timetable export/import.
+ * Handles Squad Code serialization and deserialization for timetable sharing.
+ * Completely peer-to-peer, serverless, and fast.
  */
 object TimetableExportManager {
 
     private const val FORMAT_VERSION = 1
+    private const val SQUAD_PREFIX = "MARGIN:"
 
-    // ── Export ────────────────────────────────────────────────────────────────
+    // ── Export / Generation ───────────────────────────────────────────────────
 
     fun toJson(
         sessionName: String,
@@ -63,7 +59,7 @@ object TimetableExportManager {
         }
         root.put("slots", slotsArr)
 
-        return root.toString(2)
+        return root.toString()
     }
 
     /**
@@ -76,33 +72,10 @@ object TimetableExportManager {
     ): String {
         val json = toJson(sessionName, subjects, slots)
         val encoded = Base64.encodeToString(json.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-        return "MARGIN:$encoded"
+        return "$SQUAD_PREFIX$encoded"
     }
 
-    fun writeToShareableFile(context: Context, json: String, sessionName: String): Uri {
-        val safeFileName = "margin_timetable_${sessionName.replace(" ", "_")}.json"
-        val file = File(context.cacheDir, safeFileName)
-        file.writeText(json, Charsets.UTF_8)
-
-        return FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
-    }
-
-    fun buildShareIntent(uri: Uri, sessionName: String): Intent {
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/json"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Timetable — $sessionName")
-            putExtra(Intent.EXTRA_TEXT, "Here's my semester timetable exported from Margin!")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        return Intent.createChooser(shareIntent, "Share Timetable via…")
-    }
-
-    // ── Import ────────────────────────────────────────────────────────────────
+    // ── Import / Decoding ────────────────────────────────────────────────────
 
     data class ImportedSlot(
         val subjectCode: String,
@@ -120,56 +93,67 @@ object TimetableExportManager {
         data class Failure(val reason: String) : ParseResult()
     }
 
-    fun parseFromStream(stream: InputStream): ParseResult {
-        return try {
-            val json = stream.bufferedReader(Charsets.UTF_8).readText()
-            parseFromString(json)
-        } catch (e: Exception) {
-            ParseResult.Failure("Could not read file: ${e.message}")
-        }
-    }
-
     /**
-     * Parses from either a Squad Code ("MARGIN:...") or raw JSON.
-     * Resilient against surrounding text copied from messenger apps.
+     * Parses a Squad Code ("MARGIN:...") or fallback JSON string.
+     * Resilient against surrounding text copied from messenger apps (WhatsApp/Telegram/Discord).
      */
     fun parseFromString(rawInput: String): ParseResult {
-        return try {
-            val trimmed = rawInput.trim()
-            val json = if (trimmed.contains("MARGIN:")) {
-                val afterPrefix = trimmed.substringAfter("MARGIN:").trim()
+        val trimmed = rawInput.trim()
+        if (trimmed.isEmpty()) {
+            return ParseResult.Failure("Squad Code cannot be empty.")
+        }
+
+        val json = try {
+            if (trimmed.contains(SQUAD_PREFIX)) {
+                val afterPrefix = trimmed.substringAfter(SQUAD_PREFIX).trim()
                 val base64Data = afterPrefix.replace(Regex("""\s+"""), "")
-                String(Base64.decode(base64Data, Base64.DEFAULT), Charsets.UTF_8)
+                try {
+                    String(Base64.decode(base64Data, Base64.DEFAULT), Charsets.UTF_8)
+                } catch (e: IllegalArgumentException) {
+                    return ParseResult.Failure("Malformed Squad Code (bad Base64 encoding). Ensure the entire code was copied.")
+                }
             } else {
                 trimmed
             }
+        } catch (e: Exception) {
+            return ParseResult.Failure("Could not decode Squad Code: ${e.message}")
+        }
+
+        return try {
             val root = JSONObject(json)
             val version = root.optInt("version", 0)
             val sessionName = root.optString("sessionName", "Imported Timetable").trim()
 
             if (version < 1) {
-                return ParseResult.Failure("Unrecognised format (version=$version)")
+                return ParseResult.Failure("Incompatible Squad Code format (version $version).")
             }
 
-            val subjectsArr = root.getJSONArray("subjects")
+            val subjectsArr = root.optJSONArray("subjects")
+                ?: return ParseResult.Failure("Invalid Squad Code: missing subjects list.")
             val subjects = mutableListOf<Pair<String, String>>()
             for (i in 0 until subjectsArr.length()) {
                 val obj = subjectsArr.getJSONObject(i)
-                val code = obj.getString("code").trim()
-                val name = obj.getString("name").trim()
+                val code = obj.optString("code", "").trim()
+                val name = obj.optString("name", "").trim()
                 if (code.isNotEmpty() && name.isNotEmpty()) subjects += Pair(code, name)
             }
 
-            val slotsArr = root.getJSONArray("slots")
+            if (subjects.isEmpty()) {
+                return ParseResult.Failure("No valid subjects found in Squad Code.")
+            }
+
+            val slotsArr = root.optJSONArray("slots")
             val slots = mutableListOf<ImportedSlot>()
-            for (i in 0 until slotsArr.length()) {
-                val obj = slotsArr.getJSONObject(i)
-                val code = obj.getString("subjectCode").trim()
-                val day = obj.getInt("day")
-                val time = obj.getString("time").trim()
-                val room = obj.optString("room", "").trim()
-                if (code.isNotEmpty() && day in 1..7 && time.isNotEmpty()) {
-                    slots += ImportedSlot(code, day, time, room)
+            if (slotsArr != null) {
+                for (i in 0 until slotsArr.length()) {
+                    val obj = slotsArr.getJSONObject(i)
+                    val code = obj.optString("subjectCode", "").trim()
+                    val day = obj.optInt("day", -1)
+                    val time = obj.optString("time", "").trim()
+                    val room = obj.optString("room", "").trim()
+                    if (code.isNotEmpty() && day in 1..7 && time.isNotEmpty()) {
+                        slots += ImportedSlot(code, day, time, room)
+                    }
                 }
             }
 
@@ -179,13 +163,9 @@ object TimetableExportManager {
                     .thenBy { AttendanceMath.parseTimeToMinutes(it.time) }
             )
 
-            if (subjects.isEmpty()) {
-                return ParseResult.Failure("No subjects found in timetable.")
-            }
-
             ParseResult.Success(sessionName, subjects, sortedSlots)
         } catch (e: Exception) {
-            ParseResult.Failure("Invalid format: ${e.message}")
+            ParseResult.Failure("Invalid or corrupted Squad Code: ${e.message}")
         }
     }
 }

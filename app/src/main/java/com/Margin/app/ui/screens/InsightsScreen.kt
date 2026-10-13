@@ -46,6 +46,7 @@ fun InsightsScreen(
 
     var showSemesterSheet by remember { mutableStateOf(false) }
     var showSquadSync by remember { mutableStateOf(false) }
+    var squadSyncInitialTab by remember { mutableIntStateOf(0) }
 
     // Attendance Period Selector
     var selectedScope by remember { mutableStateOf(AttendanceScope.SEMESTER) }
@@ -78,8 +79,14 @@ fun InsightsScreen(
 
     val activeSubjectIds = remember(subjectOverviews) { subjectOverviews.map { it.id }.toSet() }
     val monthRecordsFiltered = remember(monthRecords, activeSubjectIds) {
-        if (activeSubjectIds.isEmpty()) monthRecords
-        else monthRecords.filter { it.subjectId in activeSubjectIds }
+        val base = if (activeSubjectIds.isEmpty()) monthRecords
+                   else monthRecords.filter { it.subjectId in activeSubjectIds }
+        val slotted = base.filter { it.slotId != null }
+            .groupBy { Pair(it.date, it.slotId) }
+            .mapValues { it.value.last() }
+            .values
+        val nonSlotted = base.filter { it.slotId == null }
+        slotted + nonSlotted
     }
 
     val monthAttended = remember(monthRecordsFiltered) {
@@ -89,7 +96,7 @@ fun InsightsScreen(
     val monthTotal = remember(monthRecordsFiltered) {
         monthRecordsFiltered.count {
             it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-            it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
+            it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
             it.status == "ABSENT"
         }
     }
@@ -692,26 +699,30 @@ fun InsightsScreen(
 
                         HorizontalDivider(color = SlatePillBorder, thickness = 0.5.dp)
 
-                        // Tool 2: Export Timetable for Classmates
+                        // Tool 2: Export Timetable / Squad Code
                         SemesterToolItem(
                             icon = Icons.Filled.Share,
-                            title = "Export Timetable for Classmates",
-                            subtitle = "Share JSON or Squad Code so peers can import your timetable",
+                            title = "Export Timetable / Squad Code",
+                            subtitle = "Generate and share your Squad Code with classmates",
                             actionIcon = Icons.Filled.Share,
                             onClick = {
-                                viewModel.exportTimetable(context)
+                                squadSyncInitialTab = 0
+                                showSquadSync = true
                             }
                         )
 
                         HorizontalDivider(color = SlatePillBorder, thickness = 0.5.dp)
 
-                        // Tool 3: Import Timetable from Classmate
+                        // Tool 3: Import Timetable / Squad Sync
                         SemesterToolItem(
                             icon = Icons.Filled.Group,
                             title = "Import Timetable / Squad Sync",
-                            subtitle = "Import shared timetable via Squad Code or JSON file",
+                            subtitle = "Enter or paste a classmate's Squad Code to sync schedule",
                             actionIcon = Icons.Filled.FileDownload,
-                            onClick = { showSquadSync = true }
+                            onClick = {
+                                squadSyncInitialTab = 1
+                                showSquadSync = true
+                            }
                         )
 
                         HorizontalDivider(color = SlatePillBorder, thickness = 0.5.dp)
@@ -740,7 +751,8 @@ fun InsightsScreen(
     if (showSquadSync) {
         SquadSyncSheet(
             onDismiss = { showSquadSync = false },
-            viewModel = viewModel
+            viewModel = viewModel,
+            initialTab = squadSyncInitialTab
         )
     }
 }

@@ -82,19 +82,43 @@ class AttendanceRepository(private val db: AppDatabase) {
         attendanceDao.getRecordsForSubjectsOnce(subjectIds)
 
     suspend fun markAttendance(subjectId: String, slotId: String?, date: Long, status: String, note: String = "") {
-        val existing = attendanceDao.getRecord(subjectId, date, slotId)
-        if (existing != null) {
+        if (slotId != null) {
+            val existingRecords = attendanceDao.getRecordsBySlotAndDate(date, slotId)
             if (status == "NONE") {
-                attendanceDao.deleteRecordById(existing.id)
+                attendanceDao.deleteRecordsBySlotAndDate(date, slotId)
             } else {
-                attendanceDao.insertRecord(
-                    existing.copy(slotId = slotId ?: existing.slotId, status = status, note = if (note.isNotBlank()) note else existing.note)
-                )
+                val primary = existingRecords.firstOrNull()
+                if (primary != null) {
+                    attendanceDao.insertRecord(
+                        primary.copy(
+                            subjectId = subjectId,
+                            slotId = slotId,
+                            status = status,
+                            note = if (note.isNotBlank()) note else primary.note
+                        )
+                    )
+                    if (existingRecords.size > 1) {
+                        existingRecords.drop(1).forEach { attendanceDao.deleteRecordById(it.id) }
+                    }
+                } else {
+                    attendanceDao.insertRecord(
+                        AttendanceRecordEntity(subjectId = subjectId, date = date, slotId = slotId, status = status, note = note)
+                    )
+                }
             }
         } else {
-            if (status != "NONE") {
+            val existing = attendanceDao.getRecord(subjectId, date, null)
+            if (existing != null) {
+                if (status == "NONE") {
+                    attendanceDao.deleteRecordById(existing.id)
+                } else {
+                    attendanceDao.insertRecord(
+                        existing.copy(status = status, note = if (note.isNotBlank()) note else existing.note)
+                    )
+                }
+            } else if (status != "NONE") {
                 attendanceDao.insertRecord(
-                    AttendanceRecordEntity(subjectId = subjectId, date = date, slotId = slotId, status = status, note = note)
+                    AttendanceRecordEntity(subjectId = subjectId, date = date, slotId = null, status = status, note = note)
                 )
             }
         }
@@ -131,13 +155,20 @@ class AttendanceRepository(private val db: AppDatabase) {
         status: String,
         note: String
     ) {
-        val existingOld = attendanceDao.getRecord(oldSubjectId, date, slotId)
-        if (existingOld != null) {
-            attendanceDao.deleteRecordById(existingOld.id)
-        }
-        val existingNew = attendanceDao.getRecord(newSubjectId, date, slotId)
-        if (existingNew != null) {
-            attendanceDao.insertRecord(existingNew.copy(status = status, note = note))
+        val existingRecords = attendanceDao.getRecordsBySlotAndDate(date, slotId)
+        if (existingRecords.isNotEmpty()) {
+            val primary = existingRecords.first()
+            attendanceDao.insertRecord(
+                primary.copy(
+                    subjectId = newSubjectId,
+                    slotId = slotId,
+                    status = status,
+                    note = note
+                )
+            )
+            if (existingRecords.size > 1) {
+                existingRecords.drop(1).forEach { attendanceDao.deleteRecordById(it.id) }
+            }
         } else {
             attendanceDao.insertRecord(
                 AttendanceRecordEntity(

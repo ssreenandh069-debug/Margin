@@ -390,30 +390,8 @@ fun CreateSessionSheet(
     var showDatePicker by remember { mutableStateOf(false) }
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let {
-            try {
-                val stream = context.contentResolver.openInputStream(it) ?: return@let
-                val res = stream.use { s -> TimetableExportManager.parseFromStream(s) }
-                when (res) {
-                    is TimetableExportManager.ParseResult.Success -> {
-                        sessionName = res.sessionName
-                        subjectCount = res.subjects.size
-                        subjectsList = res.subjects.map { SubjectDraft(it.first, it.second) }
-                        importedSlots = res.slots
-                        Toast.makeText(context, "Loaded ${res.subjects.size} subjects from JSON", Toast.LENGTH_SHORT).show()
-                    }
-                    is TimetableExportManager.ParseResult.Failure -> {
-                        Toast.makeText(context, "Import failed: ${res.reason}", Toast.LENGTH_LONG).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Toast.makeText(context, "Failed to read file", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
+    var showSquadSyncDialog by remember { mutableStateOf(false) }
+    var dialogSquadCode by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -439,9 +417,9 @@ fun CreateSessionSheet(
                     Text("Define semester subjects & timetable", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = {
-                    importLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                    showSquadSyncDialog = true
                 }) {
-                    Icon(Icons.Filled.FileDownload, contentDescription = "Import JSON", tint = NeonTeal)
+                    Icon(Icons.Filled.Group, contentDescription = "Import Squad Code", tint = NeonTeal)
                 }
             }
 
@@ -560,6 +538,68 @@ fun CreateSessionSheet(
             }
         ) { DatePicker(state = datePickerState) }
     }
+
+    if (showSquadSyncDialog) {
+        val clipboardManager = LocalClipboardManager.current
+        AlertDialog(
+            onDismissRequest = { showSquadSyncDialog = false },
+            title = { Text("Import via Squad Code", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Paste a Squad Code shared by a classmate to prefill this semester's name, subjects, and routine.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = dialogSquadCode,
+                        onValueChange = { dialogSquadCode = it },
+                        placeholder = { Text("Paste MARGIN:... code here") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3,
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                val clip = clipboardManager.getText()?.text
+                                if (!clip.isNullOrBlank()) {
+                                    dialogSquadCode = clip.trim()
+                                }
+                            }) {
+                                Icon(Icons.Filled.ContentPaste, contentDescription = "Paste", tint = NeonTeal)
+                            }
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val res = TimetableExportManager.parseFromString(dialogSquadCode)
+                        when (res) {
+                            is TimetableExportManager.ParseResult.Success -> {
+                                sessionName = res.sessionName
+                                subjectCount = res.subjects.size
+                                subjectsList = res.subjects.map { SubjectDraft(it.first, it.second) }
+                                importedSlots = res.slots
+                                Toast.makeText(context, "Loaded ${res.subjects.size} subjects from Squad Code", Toast.LENGTH_SHORT).show()
+                                showSquadSyncDialog = false
+                            }
+                            is TimetableExportManager.ParseResult.Failure -> {
+                                Toast.makeText(context, "Invalid Squad Code: ${res.reason}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonTeal, contentColor = Color(0xFF003D35))
+                ) {
+                    Text("Apply Code", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSquadSyncDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 // ── EXTRA DUTY SHEET ──────────────────────────────────────────────────────────
@@ -573,7 +613,7 @@ fun ExtraDutySheet(
     onDismiss: () -> Unit
 ) {
     val dutyRecords by viewModel.dutyRecordsFlow(subjectId).collectAsState(emptyList())
-    var selectedDateMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var selectedDateMs by remember { mutableStateOf(viewModel.selectedDate.value) }
     var showDatePicker by remember { mutableStateOf(false) }
     val formatter = remember { SimpleDateFormat("EEE, MMM dd yyyy", Locale.getDefault()) }
 
@@ -685,23 +725,16 @@ fun ExtraDutySheet(
     }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = AttendanceMath.localToUtcMidnight(selectedDateMs)
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let {
-                        selectedDateMs = AttendanceMath.utcToLocalMidnight(it)
-                    }
-                    showDatePicker = false
-                }) { Text("OK", color = NeonTeal) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+        InteractiveCalendarSheet(
+            onDismiss = { showDatePicker = false },
+            viewModel = viewModel,
+            initialDateMs = selectedDateMs,
+            actionButtonText = "Select Date for Duty",
+            onDateSelected = { dateMs ->
+                selectedDateMs = dateMs
+                showDatePicker = false
             }
-        ) { DatePicker(state = datePickerState) }
+        )
     }
 }
 
@@ -919,12 +952,13 @@ fun SemesterOverviewSheet(
 @Composable
 fun SquadSyncSheet(
     onDismiss: () -> Unit,
-    viewModel: AttendanceViewModel
+    viewModel: AttendanceViewModel,
+    initialTab: Int = 0
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val activeSession by viewModel.activeSession.collectAsState()
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
     var squadCode by remember { mutableStateOf("") }
     var inputCode by remember { mutableStateOf("") }
     var isCopied by remember { mutableStateOf(false) }
@@ -1337,9 +1371,12 @@ private fun isSameDay(ms1: Long, ms2: Long): Boolean {
 fun InteractiveCalendarSheet(
     onDismiss: () -> Unit,
     viewModel: AttendanceViewModel,
-    onDateSelected: (Long) -> Unit
+    onDateSelected: (Long) -> Unit,
+    initialDateMs: Long? = null,
+    actionButtonText: String = "Jump to this Date in Time Machine"
 ) {
-    val initialDate = viewModel.selectedDate.collectAsState().value
+    val currentSelected = viewModel.selectedDate.collectAsState().value
+    val initialDate = initialDateMs ?: currentSelected
     val initCal = remember(initialDate) { Calendar.getInstance().apply { timeInMillis = initialDate } }
 
     var displayedYear by remember { mutableIntStateOf(initCal.get(Calendar.YEAR)) }
@@ -1362,10 +1399,19 @@ fun InteractiveCalendarSheet(
 
     val monthRecords by viewModel.recordsInRangeFlow(monthStartMs, monthEndMs).collectAsState(initial = emptyList())
 
-    val dayRecordsMap = remember(monthRecords, displayedYear, displayedMonth) {
+    val deduplicatedMonthRecords = remember(monthRecords) {
+        val slotted = monthRecords.filter { it.slotId != null }
+            .groupBy { Pair(it.date, it.slotId) }
+            .mapValues { it.value.last() }
+            .values
+        val nonSlotted = monthRecords.filter { it.slotId == null }
+        slotted + nonSlotted
+    }
+
+    val dayRecordsMap = remember(deduplicatedMonthRecords, displayedYear, displayedMonth) {
         val map = mutableMapOf<Int, MutableList<AttendanceRecordEntity>>()
         val cal = Calendar.getInstance()
-        monthRecords.forEach { rec ->
+        deduplicatedMonthRecords.forEach { rec ->
             cal.timeInMillis = rec.date
             if (cal.get(Calendar.YEAR) == displayedYear && cal.get(Calendar.MONTH) == displayedMonth) {
                 val day = cal.get(Calendar.DAY_OF_MONTH)
@@ -1375,13 +1421,13 @@ fun InteractiveCalendarSheet(
         map
     }
 
-    val (monthAttended, monthTotal, monthBunks) = remember(monthRecords) {
-        val valid = monthRecords.filter { it.status != "NONE" && it.status != "CANCELLED" }
+    val (monthAttended, monthTotal, monthBunks) = remember(deduplicatedMonthRecords) {
+        val valid = deduplicatedMonthRecords.filter { it.status != "NONE" && it.status != "CANCELLED" }
         val attended = valid.count { it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" }
         val bunks = valid.count { it.status == "BUNK" }
         val total = valid.count {
             it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-            it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
+            it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
             it.status == "ABSENT"
         }
         Triple(attended, total, bunks)
@@ -1730,7 +1776,7 @@ fun InteractiveCalendarSheet(
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Jump to this Date in Time Machine", fontWeight = FontWeight.Bold)
+                        Text(actionButtonText, fontWeight = FontWeight.Bold)
                     }
                 }
             }

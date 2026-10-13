@@ -23,14 +23,20 @@ class SmartBunkWorker(
 
             if (subjects.isEmpty()) return Result.success()
 
-            val allRecords = db.attendanceRecordDao().getRecordsForSubjectsOnce(subjects.map { it.id })
+            val rawRecords = db.attendanceRecordDao().getRecordsForSubjectsOnce(subjects.map { it.id })
+            val slotted = rawRecords.filter { it.slotId != null }
+                .groupBy { Pair(it.date, it.slotId) }
+                .mapValues { it.value.last() }
+                .values
+            val nonSlotted = rawRecords.filter { it.slotId == null }
+            val allRecords = slotted + nonSlotted
 
             val attended = allRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY"
             }
             val total = allRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
+                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
                 it.status == "ABSENT"
             }
 

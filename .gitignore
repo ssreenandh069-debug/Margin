@@ -1,4 +1,4 @@
-# ── Android/Java ───────────────────────────────────────────────────────────
+# ── Android & JVM Build Output ───────────────────────────────────────────
 *.class
 *.jar
 *.aar
@@ -7,8 +7,10 @@
 *.aab
 *.dex
 *.dex.dex2jar.jar
+*.apk.idsig
+output-metadata.json
 
-# ── Gradle/Build ──────────────────────────────────────────────────────────
+# ── Gradle ─────────────────────────────────────────────────────────────────
 .gradle/
 build/
 app/build/
@@ -27,7 +29,7 @@ secrets.properties
 *.env.*
 google-services.json
 
-# ── IDEs ──────────────────────────────────────────────────────────────────
+# ── IDEs (Android Studio / IntelliJ / VS Code) ────────────────────────────
 .idea/
 *.iml
 *.ipr
@@ -35,8 +37,9 @@ google-services.json
 .vscode/
 .navigation/
 
-# ── Kotlin ────────────────────────────────────────────────────────────────
+# ── Kotlin & Profiler Dumps ────────────────────────────────────────────────
 .kotlin/
+*.hprof
 
 # ── Logs & Temporary Files ────────────────────────────────────────────────
 *.log
@@ -50,12 +53,14 @@ Thumbs.db
 ehthumbs.db
 $RECYCLE.BIN/
 
-# ── Custom App Exclusions ──────────────────────────────────────────────────
-theme_fix.py
+# ── SQLite / Room Temporary Database Files ─────────────────────────────────
 *.db-journal
 *.db-shm
 *.db-wal
+
+# ── AI Agents & Local Scratch Folders ───────────────────────────────────────
 .gemini/
 .agent/
 .agents/
 .cortex/
+theme_fix.py
