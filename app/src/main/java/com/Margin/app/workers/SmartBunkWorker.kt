@@ -30,7 +30,8 @@ class SmartBunkWorker(
             }
             val total = allRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT"
+                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+                it.status == "ABSENT"
             }
 
             if (total == 0) return Result.success()

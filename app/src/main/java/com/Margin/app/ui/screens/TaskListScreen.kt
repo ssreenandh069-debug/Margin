@@ -1,6 +1,9 @@
 package com.Margin.app.ui.screens
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -8,17 +11,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -26,481 +25,342 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.Margin.app.data.local.entity.TaskType
 import com.Margin.app.ui.components.AddTaskSheet
+import com.Margin.app.ui.components.MarginTopBar
+import com.Margin.app.ui.components.SemesterOverviewSheet
 import com.Margin.app.ui.theme.*
 import com.Margin.app.ui.viewmodel.AttendanceViewModel
-import com.Margin.app.ui.viewmodel.SubjectOverviewUi
 import com.Margin.app.ui.viewmodel.TaskUi
 import com.Margin.app.ui.viewmodel.TaskViewModel
 import com.Margin.app.utils.getAppViewModel
-import java.util.Locale
-
-fun taskAccentColor(type: TaskType): Color = when (type) {
-    TaskType.ASSIGNMENT   -> BlueAccent
-    TaskType.PRESENTATION -> Magenta
-    TaskType.PRACTICAL    -> Yellow
-    TaskType.STUDY_GOAL   -> AttendGreen
-    TaskType.OTHER        -> AttendGrey
-}
-
-enum class StatusFilter { ALL, PENDING, COMPLETED }
 
 @Composable
 fun TaskListScreen(
-    initialType: TaskType? = null,
-    onBack: (() -> Unit)? = null,
     viewModel: TaskViewModel = getAppViewModel(),
     attendanceViewModel: AttendanceViewModel = getAppViewModel()
 ) {
     val context = LocalContext.current
     val allTasks by viewModel.allTasks.collectAsState()
-    val subjects by attendanceViewModel.subjectOverviews.collectAsState()
-    val analytics by attendanceViewModel.analytics.collectAsState()
+    val activeSession by attendanceViewModel.activeSession.collectAsState()
 
-    var selectedMainTab by remember { mutableIntStateOf(0) }
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(initialType) }
-    var selectedStatus by remember { mutableStateOf(StatusFilter.ALL) }
+    var selectedCategoryFilter by remember { mutableStateOf<TaskType?>(null) }
     var showAddSheet by remember { mutableStateOf(false) }
-
-    val filteredTasks = allTasks.filter { task ->
-        val matchesCategory = selectedCategory == null || task.type == selectedCategory
-        val matchesStatus = when (selectedStatus) {
-            StatusFilter.ALL -> true
-            StatusFilter.PENDING -> !task.isCompleted
-            StatusFilter.COMPLETED -> task.isCompleted
-        }
-        val matchesSearch = searchQuery.isBlank() ||
-            task.title.contains(searchQuery, true) ||
-            task.subjectName.contains(searchQuery, true) ||
-            task.subjectCode.contains(searchQuery, true)
-
-        matchesCategory && matchesStatus && matchesSearch
-    }
+    var showSemesterSheet by remember { mutableStateOf(false) }
 
     val pendingCount = allTasks.count { !it.isCompleted }
-    val completedCount = allTasks.count { it.isCompleted }
+    val urgentCount = allTasks.count { !it.isCompleted && (it.isOverdue || it.dueDateMs - System.currentTimeMillis() < 86400000L * 2) }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    val filteredTasks = remember(allTasks, selectedCategoryFilter) {
+        if (selectedCategoryFilter == null) allTasks
+        else allTasks.filter { it.type == selectedCategoryFilter }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+    ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 96.dp)
+            contentPadding = PaddingValues(bottom = 90.dp)
         ) {
-            // Header
+            // Unified Top Bar
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (onBack != null) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            if (selectedMainTab == 0) "Reminders & Tasks" else "Subject Attendance",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            if (selectedMainTab == 0) "$pendingCount pending  •  $completedCount completed"
-                            else "${subjects.size} subjects  •  1-tap + and - control",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                MarginTopBar(
+                    screenTitle = "Tasks",
+                    semesterName = activeSession?.name,
+                    onSemesterClick = { showSemesterSheet = true },
+                    onProfileClick = { showSemesterSheet = true }
+                )
             }
 
-            // Main Tab Switcher
+            // Submissions Overview Card
             item {
-                TabRow(
-                    selectedTabIndex = selectedMainTab,
-                    containerColor = MaterialTheme.colorScheme.background,
-                    contentColor = NeonTeal,
-                    indicator = { tabPositions ->
-                        TabRowDefaults.SecondaryIndicator(
-                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedMainTab]),
-                            color = NeonTeal
-                        )
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 10.dp)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardDark),
+                    border = BorderStroke(1.dp, SlatePillBorder)
                 ) {
-                    Tab(
-                        selected = selectedMainTab == 0,
-                        onClick = { selectedMainTab = 0 },
-                        text = {
-                            Text(
-                                "Tasks ($pendingCount)",
-                                fontWeight = if (selectedMainTab == 0) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedMainTab == 1,
-                        onClick = { selectedMainTab = 1 },
-                        text = {
-                            Text(
-                                "All Subjects (${subjects.size})",
-                                fontWeight = if (selectedMainTab == 1) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
-                }
-            }
+                    Column(
+                        modifier = Modifier.padding(18.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Checklist,
+                                    contentDescription = null,
+                                    tint = NeonTeal,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Submissions Overview",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                            }
 
-            if (selectedMainTab == 0) {
-                // ── TAB 0: DELIVERABLES & TASKS ──────────────────────────────────
-                item {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        placeholder = { Text("Search assignments, labs...") },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(NeonTealAlpha20)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "ACTIVE TERM",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = NeonTeal
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+
+                        // Metric Split Boxes
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Queue Box
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SlatePill)
+                                    .padding(14.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "QUEUE",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextMuted,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(verticalAlignment = Alignment.Bottom) {
+                                        Text(
+                                            text = "$pendingCount",
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = TextPrimary
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = "Pending",
+                                            fontSize = 13.sp,
+                                            color = TextSecondary,
+                                            modifier = Modifier.padding(bottom = 2.dp)
+                                        )
+                                    }
                                 }
                             }
-                        },
-                        singleLine = true
-                    )
-                }
 
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(vertical = 10.dp)
-                    ) {
-                        item {
-                            FilterPill("All", selectedStatus == StatusFilter.ALL) { selectedStatus = StatusFilter.ALL }
-                        }
-                        item {
-                            FilterPill("Pending", selectedStatus == StatusFilter.PENDING) { selectedStatus = StatusFilter.PENDING }
-                        }
-                        item {
-                            FilterPill("Completed", selectedStatus == StatusFilter.COMPLETED) { selectedStatus = StatusFilter.COMPLETED }
-                        }
-                    }
-                }
-
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    ) {
-                        item {
-                            FilterPill("All Types", selectedCategory == null) { selectedCategory = null }
-                        }
-                        items(TaskType.entries) { type ->
-                            FilterPill(type.displayName, selectedCategory == type) {
-                                selectedCategory = if (selectedCategory == type) null else type
+                            // Urgent Box
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (urgentCount > 0) AttendRedAlpha20 else SlatePill)
+                                    .padding(14.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "URGENT",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (urgentCount > 0) AttendRed else TextMuted,
+                                        letterSpacing = 1.sp
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Row(verticalAlignment = Alignment.Bottom) {
+                                        Text(
+                                            text = "$urgentCount",
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (urgentCount > 0) AttendRed else TextPrimary
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = "Due Soon",
+                                            fontSize = 13.sp,
+                                            color = if (urgentCount > 0) AttendRed else TextSecondary,
+                                            modifier = Modifier.padding(bottom = 2.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            }
 
-                if (filteredTasks.isEmpty()) {
+            // Filter Chips: [All] [Assignments] [Lab Journals] [Projects]
+            item {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Filled.AssignmentTurnedIn, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(48.dp))
-                                Spacer(Modifier.height(10.dp))
-                                Text("No tasks found", color = MaterialTheme.colorScheme.outlineVariant)
-                            }
-                        }
-                    }
-                } else {
-                    items(filteredTasks, key = { it.id }) { task ->
-                        TaskCard(
-                            task = task,
-                            onToggle = { viewModel.toggleTaskComplete(context, task) },
-                            onDelete = { viewModel.deleteTask(context, task) }
+                        FilterPillChip(
+                            label = "All (${allTasks.size})",
+                            isSelected = selectedCategoryFilter == null,
+                            onClick = { selectedCategoryFilter = null }
                         )
+                    }
+
+                    item {
+                        FilterPillChip(
+                            label = "Assignments",
+                            isSelected = selectedCategoryFilter == TaskType.ASSIGNMENT,
+                            onClick = { selectedCategoryFilter = TaskType.ASSIGNMENT }
+                        )
+                    }
+
+                    item {
+                        FilterPillChip(
+                            label = "Lab Journals",
+                            isSelected = selectedCategoryFilter == TaskType.PRACTICAL,
+                            onClick = { selectedCategoryFilter = TaskType.PRACTICAL }
+                        )
+                    }
+
+                    item {
+                        FilterPillChip(
+                            label = "Presentations",
+                            isSelected = selectedCategoryFilter == TaskType.PRESENTATION,
+                            onClick = { selectedCategoryFilter = TaskType.PRESENTATION }
+                        )
+                    }
+
+                    item {
+                        FilterPillChip(
+                            label = "Study Goals",
+                            isSelected = selectedCategoryFilter == TaskType.STUDY_GOAL,
+                            onClick = { selectedCategoryFilter = TaskType.STUDY_GOAL }
+                        )
+                    }
+                }
+            }
+
+            // Task Cards List
+            if (filteredTasks.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.TaskAlt,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Text(
+                                text = "No tasks in this category",
+                                fontSize = 14.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 }
             } else {
-                // ── TAB 1: ALL SUBJECTS ATTENDANCE CONTROLS ─────────────────────
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Semester Attendance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "${analytics.totalAttended} of ${analytics.totalClasses} classes attended • ${analytics.totalBunks} bunks",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                if (analytics.overallPercentage >= 75f) {
-                                    Text("Safe Bunks: ${analytics.safeBunksLeft}", color = AttendGreen, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                } else {
-                                    Text("Need ${analytics.classesNeeded} classes to 75%", color = AttendRed, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            val overallColor = if (analytics.overallPercentage >= 75f) NeonTeal else AttendRed
-                            Text(
-                                String.format(Locale.US, "%.1f%%", analytics.overallPercentage),
-                                fontSize = 28.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = overallColor
-                            )
-                        }
-                    }
+                items(filteredTasks, key = { it.id }) { task ->
+                    TaskCard(
+                        task = task,
+                        onToggle = { viewModel.toggleTaskComplete(context, task) },
+                        onDelete = { viewModel.deleteTask(context, task) }
+                    )
                 }
+            }
 
-                if (subjects.isEmpty()) {
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Filled.School, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(48.dp))
-                                Spacer(Modifier.height(10.dp))
-                                Text("No subjects found", color = MaterialTheme.colorScheme.outlineVariant)
-                                Text("Add subjects or import timetable via Squad Sync", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outlineVariant)
-                            }
-                        }
-                    }
-                } else {
-                    items(subjects, key = { it.id }) { sub ->
-                        SubjectAttendanceCard(
-                            subject = sub,
-                            isMostBunked = sub.name == analytics.mostBunkedSubjectName || sub.code == analytics.mostBunkedSubjectName,
-                            isHeaviestWorkload = sub.name == analytics.heaviestWorkloadSubjectName || sub.code == analytics.heaviestWorkloadSubjectName,
-                            onIncrementPresent = { attendanceViewModel.incrementPresent(sub.id) },
-                            onIncrementBunk = { attendanceViewModel.incrementBunk(sub.id) },
-                            onUndo = { attendanceViewModel.decrementAttendance(sub.id) }
+            // Add Work / Assignment Button
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Button(
+                        onClick = { showAddSheet = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonTeal,
+                            contentColor = Color(0xFF0C131D)
+                        )
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Add Work / Assignment",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
-            }
-        }
-
-        // FAB only in Tasks view
-        if (selectedMainTab == 0) {
-            FloatingActionButton(
-                onClick = { showAddSheet = true },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 20.dp),
-                containerColor = NeonTeal,
-                contentColor = Color(0xFF003D35),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add Task")
             }
         }
     }
 
     if (showAddSheet) {
-        AddTaskSheet(onDismiss = { showAddSheet = false }, taskViewModel = viewModel)
+        AddTaskSheet(
+            onDismiss = { showAddSheet = false },
+            taskViewModel = viewModel
+        )
     }
-}
 
-@Composable
-private fun FilterPill(label: String, isSelected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (isSelected) NeonTeal else MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, if (isSelected) NeonTeal else MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) Color(0xFF003D35) else MaterialTheme.colorScheme.onSurfaceVariant
+    if (showSemesterSheet) {
+        SemesterOverviewSheet(
+            onDismiss = { showSemesterSheet = false },
+            viewModel = attendanceViewModel,
+            onCreateNewSemester = { /* handeled inside */ }
         )
     }
 }
 
 @Composable
-private fun SubjectAttendanceCard(
-    subject: SubjectOverviewUi,
-    isMostBunked: Boolean,
-    isHeaviestWorkload: Boolean,
-    onIncrementPresent: () -> Unit,
-    onIncrementBunk: () -> Unit,
-    onUndo: () -> Unit
+private fun FilterPillChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    val barColor = when {
-        subject.percentage >= 75f -> AttendGreen
-        subject.percentage >= 65f -> AttendOrange
-        else -> AttendRed
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        border = BorderStroke(1.dp, if (subject.percentage < 75f && subject.total > 0) AttendRed.copy(0.4f) else MaterialTheme.colorScheme.outline)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isSelected) SlatePillBorder else SlatePill)
+            .border(1.dp, if (isSelected) NeonTeal else SlatePillBorder, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Surface(color = NeonTealAlpha20, shape = RoundedCornerShape(6.dp)) {
-                        Text(
-                            subject.code,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = NeonTeal,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        subject.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-
-                Text(
-                    String.format(Locale.US, "%.1f%%", subject.percentage),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = barColor
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { (subject.percentage / 100f).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                color = barColor,
-                trackColor = MaterialTheme.colorScheme.surface,
-                strokeCap = StrokeCap.Round
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "${subject.attended} / ${subject.total} attended",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outlineVariant
-                )
-
-                if (subject.percentage >= 75f) {
-                    Text(
-                        "Safe margin: ${subject.safeBunks} bunks",
-                        color = AttendGreen,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                } else if (subject.total > 0) {
-                    Text(
-                        "Need: ${subject.neededToRecover} consecutive",
-                        color = AttendRed,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            // Badges (Wall of Shame / Heavy Workload)
-            if (isMostBunked || isHeaviestWorkload) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (isMostBunked) {
-                        Surface(color = AttendOrange.copy(0.15f), shape = RoundedCornerShape(6.dp)) {
-                            Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = AttendOrange, modifier = Modifier.size(12.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Wall of Shame", color = AttendOrange, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                    if (isHeaviestWorkload) {
-                        Surface(color = Magenta.copy(0.15f), shape = RoundedCornerShape(6.dp)) {
-                            Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.FitnessCenter, contentDescription = null, tint = Magenta, modifier = Modifier.size(12.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Heavy Load", color = Magenta, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.5.dp)
-            Spacer(Modifier.height(8.dp))
-
-            // Stepper buttons (+ Present, - Bunk, Undo)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = onIncrementBunk,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = AttendRed.copy(0.12f),
-                        contentColor = AttendRed
-                    ),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Icon(Icons.Filled.Remove, contentDescription = "Bunk", modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("- Bunk", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Button(
-                    onClick = onIncrementPresent,
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AttendGreen.copy(0.2f),
-                        contentColor = AttendGreen
-                    ),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Present", modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("+ Present", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-
-                IconButton(
-                    onClick = onUndo,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Undo,
-                        contentDescription = "Undo Last Log",
-                        tint = MaterialTheme.colorScheme.outlineVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) TextPrimary else TextSecondary
+        )
     }
 }
 
@@ -510,70 +370,160 @@ private fun TaskCard(
     onToggle: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val accent = taskAccentColor(task.type)
+    val isDueSoon = task.isOverdue || task.dueDateMs - System.currentTimeMillis() < 86400000L * 2
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        border = BorderStroke(1.dp, if (task.isOverdue) AttendRed.copy(0.4f) else MaterialTheme.colorScheme.outline)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 5.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CardDark),
+        border = BorderStroke(1.dp, SlatePillBorder)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            // Checkbox
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(if (task.isCompleted) NeonTeal else Color.Transparent)
-                    .border(1.5.dp, if (task.isCompleted) NeonTeal else MaterialTheme.colorScheme.outline, CircleShape)
-                    .clickable(onClick = onToggle),
-                contentAlignment = Alignment.Center
+            // Top Row: Code + Due Date + Category Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (task.isCompleted) {
-                    Icon(Icons.Filled.Check, contentDescription = null, tint = Color(0xFF003D35), modifier = Modifier.size(16.dp))
-                }
-            }
-
-            Spacer(Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    task.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (task.isCompleted) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onBackground,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null
-                )
-                Spacer(Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = accent.copy(0.15f), shape = RoundedCornerShape(4.dp)) {
-                        Text(task.subjectCode, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, color = accent, fontWeight = FontWeight.Bold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Subject Code
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(SlatePill)
+                            .padding(horizontal = 7.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = task.subjectCode,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondary
+                        )
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Text(task.subjectName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                    // Due Date Badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isDueSoon) AttendRedAlpha20 else SlatePill)
+                            .padding(horizontal = 7.dp, vertical = 3.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AccessTime,
+                                contentDescription = null,
+                                tint = if (isDueSoon) AttendRed else TextSecondary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = task.dueDateFormatted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDueSoon) AttendRed else TextSecondary
+                            )
+                        }
+                    }
                 }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.size(12.dp))
-                    Spacer(Modifier.width(4.dp))
+
+                // Category Tag
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SlatePill)
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                ) {
                     Text(
-                        task.dueDateFormatted,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (task.isOverdue) AttendRed else MaterialTheme.colorScheme.outlineVariant,
-                        fontWeight = if (task.isOverdue) FontWeight.Bold else FontWeight.Normal
+                        text = task.type.displayName.uppercase(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted,
+                        letterSpacing = 0.5.sp
                     )
-                    if (task.hasReminder) {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(Icons.Filled.Alarm, contentDescription = "Alarm", tint = Magenta, modifier = Modifier.size(12.dp))
-                    }
                 }
             }
 
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete", tint = AttendRed.copy(0.7f), modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(10.dp))
+
+            // Task Title
+            Text(
+                text = task.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (task.isCompleted) TextMuted else TextPrimary,
+                textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            // Subject Name
+            Text(
+                text = task.subjectName,
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            // Action Row: Delete & Mark Done
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DeleteOutline,
+                        contentDescription = "Delete Task",
+                        tint = TextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Mark Done Pill Button
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (task.isCompleted) SlatePill else NeonTeal)
+                        .border(
+                            1.dp,
+                            if (task.isCompleted) SlatePillBorder else NeonTeal,
+                            RoundedCornerShape(10.dp)
+                        )
+                        .clickable(onClick = onToggle)
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (task.isCompleted) Icons.Filled.Check else Icons.Filled.CheckCircle,
+                            contentDescription = null,
+                            tint = if (task.isCompleted) NeonTeal else Color(0xFF0C131D),
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = if (task.isCompleted) "Completed" else "Mark Done",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (task.isCompleted) TextSecondary else Color(0xFF0C131D)
+                        )
+                    }
+                }
             }
         }
     }

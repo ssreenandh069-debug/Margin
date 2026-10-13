@@ -1377,7 +1377,8 @@ fun InteractiveCalendarSheet(
         val bunks = valid.count { it.status == "BUNK" }
         val total = valid.count {
             it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-            it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT"
+            it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+            it.status == "ABSENT"
         }
         Triple(attended, total, bunks)
     }
@@ -1541,6 +1542,7 @@ fun InteractiveCalendarSheet(
                                 val hasExcused = records.any { it.status == "EXCUSED" }
                                 val hasDuty = records.any { it.status == "DUTY" || it.status == "DUTY_ABSENT" }
                                 val hasOff = records.any { it.status == "CANCELLED" }
+                                val hasAbsent = records.any { it.status == "ABSENT" }
 
                                 Box(
                                     modifier = Modifier
@@ -1597,7 +1599,10 @@ fun InteractiveCalendarSheet(
                                                 if (hasDuty && !hasPresent) {
                                                     Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(Yellow))
                                                 }
-                                                if (hasOff && !hasPresent && !hasBunk) {
+                                                if (hasAbsent && !hasBunk) {
+                                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(if (isSelected) Color(0xFF700000) else Color(0xFFF97316)))
+                                                }
+                                                if (hasOff && !hasPresent && !hasBunk && !hasAbsent) {
                                                     Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(AttendGrey))
                                                 }
                                             }
@@ -1675,11 +1680,13 @@ fun InteractiveCalendarSheet(
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             val pCount = pickedDayRecords.count { it.status == "PRESENT" || it.status == "DUTY" }
                             val bCount = pickedDayRecords.count { it.status == "BUNK" }
+                            val aCount = pickedDayRecords.count { it.status == "ABSENT" }
                             val eCount = pickedDayRecords.count { it.status == "EXCUSED" }
                             val oCount = pickedDayRecords.count { it.status == "CANCELLED" }
 
                             if (pCount > 0) PillTag("$pCount Attended", AttendGreen)
                             if (bCount > 0) PillTag("$bCount Bunked", AttendRed)
+                            if (aCount > 0) PillTag("$aCount Absent", Color(0xFFF97316))
                             if (eCount > 0) PillTag("$eCount Excused", PurpleAccent)
                             if (oCount > 0) PillTag("$oCount Off", AttendGrey)
                         }

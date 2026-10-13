@@ -136,7 +136,8 @@ class AttendanceViewModel(
             }
             val total = subjectRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT"
+                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+                it.status == "ABSENT"
             }
 
             val pct = AttendanceMath.calculatePercentage(attended, total)
@@ -173,7 +174,8 @@ class AttendanceViewModel(
             }
             val total = subRecs.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT"
+                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+                it.status == "ABSENT"
             }
             val pct = AttendanceMath.calculatePercentage(attended, total)
             val safeBunks = AttendanceMath.calculateSafeBunks(attended, total)
@@ -290,6 +292,28 @@ class AttendanceViewModel(
             val classes = todayClasses.value
             val allCancelled = classes.isNotEmpty() && classes.all { it.status == "CANCELLED" }
             val target = if (allCancelled) "NONE" else "CANCELLED"
+            classes.forEach {
+                repository.markAttendance(it.subjectId, it.timetableId, _selectedDate.value, target)
+            }
+        }
+    }
+
+    fun markDayAbsent() {
+        viewModelScope.launch {
+            val classes = todayClasses.value
+            val allAbsent = classes.isNotEmpty() && classes.all { it.status == "ABSENT" }
+            val target = if (allAbsent) "NONE" else "ABSENT"
+            classes.forEach {
+                repository.markAttendance(it.subjectId, it.timetableId, _selectedDate.value, target)
+            }
+        }
+    }
+
+    fun markDayBunked() {
+        viewModelScope.launch {
+            val classes = todayClasses.value
+            val allBunked = classes.isNotEmpty() && classes.all { it.status == "BUNK" }
+            val target = if (allBunked) "NONE" else "BUNK"
             classes.forEach {
                 repository.markAttendance(it.subjectId, it.timetableId, _selectedDate.value, target)
             }
