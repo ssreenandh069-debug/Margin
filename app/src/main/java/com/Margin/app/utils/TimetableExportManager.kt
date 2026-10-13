@@ -104,11 +104,18 @@ object TimetableExportManager {
 
     // ── Import ────────────────────────────────────────────────────────────────
 
+    data class ImportedSlot(
+        val subjectCode: String,
+        val day: Int,
+        val time: String,
+        val room: String = ""
+    )
+
     sealed class ParseResult {
         data class Success(
             val sessionName: String,
             val subjects: List<Pair<String, String>>,
-            val slots: List<Triple<String, Int, String>>
+            val slots: List<ImportedSlot>
         ) : ParseResult()
         data class Failure(val reason: String) : ParseResult()
     }
@@ -124,12 +131,14 @@ object TimetableExportManager {
 
     /**
      * Parses from either a Squad Code ("MARGIN:...") or raw JSON.
+     * Resilient against surrounding text copied from messenger apps.
      */
     fun parseFromString(rawInput: String): ParseResult {
         return try {
             val trimmed = rawInput.trim()
-            val json = if (trimmed.startsWith("MARGIN:")) {
-                val base64Data = trimmed.removePrefix("MARGIN:").trim()
+            val json = if (trimmed.contains("MARGIN:")) {
+                val afterPrefix = trimmed.substringAfter("MARGIN:").trim()
+                val base64Data = afterPrefix.split(Regex("""\s+""")).firstOrNull() ?: afterPrefix
                 String(Base64.decode(base64Data, Base64.DEFAULT), Charsets.UTF_8)
             } else {
                 trimmed
@@ -152,21 +161,22 @@ object TimetableExportManager {
             }
 
             val slotsArr = root.getJSONArray("slots")
-            val slots = mutableListOf<Triple<String, Int, String>>()
+            val slots = mutableListOf<ImportedSlot>()
             for (i in 0 until slotsArr.length()) {
                 val obj = slotsArr.getJSONObject(i)
                 val code = obj.getString("subjectCode").trim()
                 val day = obj.getInt("day")
                 val time = obj.getString("time").trim()
+                val room = obj.optString("room", "").trim()
                 if (code.isNotEmpty() && day in 1..7 && time.isNotEmpty()) {
-                    slots += Triple(code, day, time)
+                    slots += ImportedSlot(code, day, time, room)
                 }
             }
 
             // Guarantee chronological order for each day upon import
             val sortedSlots = slots.sortedWith(
-                compareBy<Triple<String, Int, String>> { it.second }
-                    .thenBy { AttendanceMath.parseTimeToMinutes(it.third) }
+                compareBy<ImportedSlot> { it.day }
+                    .thenBy { AttendanceMath.parseTimeToMinutes(it.time) }
             )
 
             if (subjects.isEmpty()) {

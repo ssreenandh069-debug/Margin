@@ -101,7 +101,10 @@ interface AttendanceRecordDao {
     @Query("UPDATE attendance_records SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: String, status: String)
 
-    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId ORDER BY date DESC LIMIT 1")
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId AND date = :date ORDER BY id DESC LIMIT 1")
+    suspend fun getLatestRecordForSubjectOnDate(subjectId: String, date: Long): AttendanceRecordEntity?
+
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId ORDER BY date DESC, id DESC LIMIT 1")
     suspend fun getLatestRecordForSubject(subjectId: String): AttendanceRecordEntity?
 
     @Query("DELETE FROM attendance_records WHERE id = :recordId")
@@ -158,17 +161,36 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_1_5 = object : Migration(1, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE timetable ADD COLUMN room TEXT NOT NULL DEFAULT ''")
-                db.execSQL("ALTER TABLE attendance_records ADD COLUMN slotId TEXT")
-                db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''")
-                db.execSQL("ALTER TABLE tasks ADD COLUMN hasReminder INTEGER NOT NULL DEFAULT 0")
+                try { db.execSQL("ALTER TABLE timetable ADD COLUMN room TEXT NOT NULL DEFAULT ''") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE attendance_records ADD COLUMN slotId TEXT") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE tasks ADD COLUMN hasReminder INTEGER NOT NULL DEFAULT 0") } catch (_: Exception) {}
+                db.execSQL("DROP TABLE IF EXISTS monthly_summaries")
+            }
+        }
+
+        val MIGRATION_2_5 = object : Migration(2, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try { db.execSQL("ALTER TABLE timetable ADD COLUMN room TEXT NOT NULL DEFAULT ''") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE attendance_records ADD COLUMN slotId TEXT") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE tasks ADD COLUMN hasReminder INTEGER NOT NULL DEFAULT 0") } catch (_: Exception) {}
+                db.execSQL("DROP TABLE IF EXISTS monthly_summaries")
+            }
+        }
+
+        val MIGRATION_3_5 = object : Migration(3, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try { db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE timetable ADD COLUMN room TEXT NOT NULL DEFAULT ''") } catch (_: Exception) {}
+                try { db.execSQL("ALTER TABLE tasks ADD COLUMN hasReminder INTEGER NOT NULL DEFAULT 0") } catch (_: Exception) {}
                 db.execSQL("DROP TABLE IF EXISTS monthly_summaries")
             }
         }
 
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+                try { db.execSQL("ALTER TABLE attendance_records ADD COLUMN note TEXT NOT NULL DEFAULT ''") } catch (_: Exception) {}
             }
         }
 
@@ -179,7 +201,14 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "margin.db"
                 )
-                .addMigrations(MIGRATION_1_5, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5, MIGRATION_4_5)
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        db.execSQL("PRAGMA foreign_keys = ON;")
+                    }
+                })
+                .fallbackToDestructiveMigration()
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 .also { INSTANCE = it }

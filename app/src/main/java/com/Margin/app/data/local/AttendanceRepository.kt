@@ -82,13 +82,16 @@ class AttendanceRepository(private val db: AppDatabase) {
         attendanceDao.getRecordsForSubjectsOnce(subjectIds)
 
     suspend fun markAttendance(subjectId: String, slotId: String?, date: Long, status: String, note: String = "") {
-        val existing = attendanceDao.getRecord(subjectId, date, slotId)
+        var existing = attendanceDao.getRecord(subjectId, date, slotId)
+        if (existing == null && slotId != null) {
+            existing = attendanceDao.getRecord(subjectId, date, null)
+        }
         if (existing != null) {
             if (status == "NONE") {
                 attendanceDao.deleteRecordById(existing.id)
             } else {
                 attendanceDao.insertRecord(
-                    existing.copy(status = status, note = if (note.isNotBlank()) note else existing.note)
+                    existing.copy(slotId = slotId ?: existing.slotId, status = status, note = if (note.isNotBlank()) note else existing.note)
                 )
             }
         } else {
@@ -112,10 +115,14 @@ class AttendanceRepository(private val db: AppDatabase) {
         )
     }
 
-    suspend fun decrementAttendance(subjectId: String) {
-        val latest = attendanceDao.getLatestRecordForSubject(subjectId)
-        if (latest != null) {
-            attendanceDao.deleteRecordById(latest.id)
+    suspend fun decrementAttendance(subjectId: String, date: Long? = null) {
+        val target = if (date != null) {
+            attendanceDao.getLatestRecordForSubjectOnDate(subjectId, date) ?: attendanceDao.getLatestRecordForSubject(subjectId)
+        } else {
+            attendanceDao.getLatestRecordForSubject(subjectId)
+        }
+        if (target != null) {
+            attendanceDao.deleteRecordById(target.id)
         }
     }
 
@@ -196,7 +203,7 @@ class AttendanceRepository(private val db: AppDatabase) {
     suspend fun importTimetable(
         sessionId: String,
         subjects: List<Pair<String, String>>,
-        slots: List<Triple<String, Int, String>>
+        slots: List<com.Margin.app.utils.TimetableExportManager.ImportedSlot>
     ) {
         val existingSubjects = subjectDao.getSubjectsBySessionOnce(sessionId)
         val codeToId = existingSubjects.associate { it.code.trim().lowercase() to it.id }.toMutableMap()
@@ -210,11 +217,18 @@ class AttendanceRepository(private val db: AppDatabase) {
             }
         }
 
-        val entities = slots.mapNotNull { (code, day, time) ->
-            val subjectId = codeToId[code.trim().lowercase()] ?: return@mapNotNull null
-            TimetableEntity(subjectId = subjectId, dayOfWeek = day, startTime = time)
+        val existingSlots = timetableDao.getAllEntriesOnce(sessionId)
+        val entities = slots.mapNotNull { slot ->
+            val subjectId = codeToId[slot.subjectCode.trim().lowercase()] ?: return@mapNotNull null
+            val isDuplicate = existingSlots.any {
+                it.subjectId == subjectId && it.dayOfWeek == slot.day && it.startTime.trim().equals(slot.time.trim(), ignoreCase = true)
+            }
+            if (isDuplicate) return@mapNotNull null
+            TimetableEntity(subjectId = subjectId, dayOfWeek = slot.day, startTime = slot.time, room = slot.room)
         }
-        timetableDao.insertEntries(entities)
+        if (entities.isNotEmpty()) {
+            timetableDao.insertEntries(entities)
+        }
     }
 
     // ── Tasks ────────────────────────────────────────────────────────────────

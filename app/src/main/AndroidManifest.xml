@@ -5,7 +5,6 @@
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
@@ -30,8 +29,7 @@
 
         <!--
             BootReceiver: Re-schedules all pending task alarms after reboot.
-            BOOT_COMPLETED        = Normal boot after power-on / restart
-            LOCKED_BOOT_COMPLETED = Direct Boot (API 24+), fires before user unlocks
+            BOOT_COMPLETED        = Normal boot after user unlock
             MY_PACKAGE_REPLACED   = App update — system clears alarms during update
         -->
         <receiver
@@ -40,7 +38,6 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>

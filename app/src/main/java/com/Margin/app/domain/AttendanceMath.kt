@@ -37,11 +37,19 @@ object AttendanceMath {
     }
 
     /**
-     * Converts a time string (e.g. "09:00 AM", "1:30 PM", "14:00") into minutes
+     * Converts a time string (e.g. "09:00 AM", "1:30 PM", "14:00", "2:00 - 3:00 PM") into minutes
      * from midnight (0..1439) for 100% accurate chronological sorting.
      */
     fun parseTimeToMinutes(timeStr: String): Int {
-        val clean = timeStr.trim().uppercase(Locale.US)
+        val raw = timeStr.trim().uppercase(Locale.US)
+        // If it's a range like "2:00 - 3:00 PM", extract the start time but inherit trailing AM/PM if missing
+        val parts = raw.split(Regex("""[-—]|(?:\bTO\b)"""))
+        var clean = parts.firstOrNull()?.trim() ?: raw
+        if (!clean.contains("AM") && !clean.contains("PM")) {
+            if (raw.endsWith("PM")) clean = "$clean PM"
+            else if (raw.endsWith("AM")) clean = "$clean AM"
+        }
+
         val formats = listOf("hh:mm a", "h:mm a", "HH:mm", "H:mm", "h a", "ha")
         for (fmt in formats) {
             try {
@@ -71,6 +79,7 @@ object AttendanceMath {
 
     fun calculateSafeBunks(attended: Int, total: Int, targetPercentage: Float = 75f): Int {
         if (total <= 0) return 0
+        if (targetPercentage <= 0f) return attended
         if (targetPercentage == 75f) {
             val margin = 4 * attended - 3 * total
             return if (margin <= 0) 0 else margin / 3

@@ -385,7 +385,7 @@ fun CreateSessionSheet(
     var startDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var subjectCount by remember { mutableStateOf(5) }
     var subjectsList by remember { mutableStateOf(List(5) { SubjectDraft() }) }
-    var importedSlots by remember { mutableStateOf<List<Triple<String, Int, String>>>(emptyList()) }
+    var importedSlots by remember { mutableStateOf<List<TimetableExportManager.ImportedSlot>>(emptyList()) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
@@ -1187,6 +1187,35 @@ fun SwapClassSheet(
                 }
             }
 
+            if (selectedSubjectId != currentSubjectId) {
+                TextButton(
+                    onClick = { selectedSubjectId = currentSubjectId },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Reset to $currentSubjectCode", color = NeonTeal, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            Text("Attendance Status for this class", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { selectedStatus = "PRESENT" },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = if (selectedStatus == "PRESENT") ButtonDefaults.outlinedButtonColors(containerColor = AttendGreen.copy(0.2f), contentColor = AttendGreen) else ButtonDefaults.outlinedButtonColors()
+                ) {
+                    Text("Attended", fontWeight = if (selectedStatus == "PRESENT") FontWeight.Bold else FontWeight.Normal)
+                }
+                OutlinedButton(
+                    onClick = { selectedStatus = "BUNK" },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = if (selectedStatus == "BUNK") ButtonDefaults.outlinedButtonColors(containerColor = AttendRed.copy(0.2f), contentColor = AttendRed) else ButtonDefaults.outlinedButtonColors()
+                ) {
+                    Text("Bunked", fontWeight = if (selectedStatus == "BUNK") FontWeight.Bold else FontWeight.Normal)
+                }
+            }
+
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
@@ -1344,11 +1373,15 @@ fun InteractiveCalendarSheet(
 
     val (monthAttended, monthTotal, monthBunks) = remember(monthRecords) {
         val valid = monthRecords.filter { it.status != "NONE" && it.status != "CANCELLED" }
-        val attended = valid.count { it.status == "PRESENT" || it.status == "DUTY" }
+        val attended = valid.count { it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" }
         val bunks = valid.count { it.status == "BUNK" }
-        Triple(attended, attended + bunks, bunks)
+        val total = valid.count {
+            it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
+            it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT"
+        }
+        Triple(attended, total, bunks)
     }
-    val monthPct = if (monthTotal > 0) (monthAttended.toFloat() / monthTotal) * 100f else 100f
+    val monthPct = if (monthTotal > 0) AttendanceMath.calculatePercentage(monthAttended, monthTotal) else 0f
 
     val monthTitle = remember(displayedYear, displayedMonth) {
         val cal = Calendar.getInstance().apply { set(displayedYear, displayedMonth, 1) }
@@ -1394,14 +1427,24 @@ fun InteractiveCalendarSheet(
                     } else {
                         displayedMonth -= 1
                     }
+                    val newCal = Calendar.getInstance().apply {
+                        set(displayedYear, displayedMonth, 1, 0, 0, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    pickedDateMs = newCal.timeInMillis
                 }) {
                     Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous Month", tint = MaterialTheme.colorScheme.onBackground)
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(monthTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    val pillColor = when {
+                        monthTotal == 0 -> MaterialTheme.colorScheme.outlineVariant
+                        monthPct >= 75f -> NeonTeal
+                        else -> AttendRed
+                    }
                     Surface(
-                        color = (if (monthPct >= 75f) NeonTeal else AttendRed).copy(alpha = 0.15f),
+                        color = pillColor.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.padding(top = 2.dp)
                     ) {
@@ -1412,7 +1455,7 @@ fun InteractiveCalendarSheet(
                                 "No classes recorded yet"
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (monthPct >= 75f) NeonTeal else AttendRed,
+                            color = pillColor,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
@@ -1426,6 +1469,11 @@ fun InteractiveCalendarSheet(
                     } else {
                         displayedMonth += 1
                     }
+                    val newCal = Calendar.getInstance().apply {
+                        set(displayedYear, displayedMonth, 1, 0, 0, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    pickedDateMs = newCal.timeInMillis
                 }) {
                     Icon(Icons.Filled.ChevronRight, contentDescription = "Next Month", tint = MaterialTheme.colorScheme.onBackground)
                 }

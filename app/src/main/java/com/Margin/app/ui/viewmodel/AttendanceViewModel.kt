@@ -266,7 +266,7 @@ class AttendanceViewModel(
 
     fun decrementAttendance(subjectId: String) {
         viewModelScope.launch {
-            repository.decrementAttendance(subjectId)
+            repository.decrementAttendance(subjectId, _selectedDate.value)
         }
     }
 
@@ -327,7 +327,7 @@ class AttendanceViewModel(
         name: String,
         startDate: Long,
         subjects: List<Pair<String, String>>,
-        slots: List<Triple<String, Int, String>> = emptyList()
+        slots: List<TimetableExportManager.ImportedSlot> = emptyList()
     ) {
         viewModelScope.launch {
             val sessionId = repository.createSessionWithSubjects(name, startDate, subjects, activate = true)

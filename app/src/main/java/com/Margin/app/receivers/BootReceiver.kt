@@ -14,10 +14,10 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val triggeringActions = setOf(
             Intent.ACTION_BOOT_COMPLETED,
-            "android.intent.action.LOCKED_BOOT_COMPLETED",
             Intent.ACTION_MY_PACKAGE_REPLACED
         )
         if (intent.action !in triggeringActions) return
+        if (!androidx.core.os.UserManagerCompat.isUserUnlocked(context)) return
 
         val pendingResult = goAsync()
 

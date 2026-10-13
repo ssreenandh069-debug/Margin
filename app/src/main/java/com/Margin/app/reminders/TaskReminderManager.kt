@@ -20,9 +20,10 @@ object TaskReminderManager {
 
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val now = System.currentTimeMillis()
-        if (task.dueDate <= now) return
+        val endOfDueDay = task.dueDate + 86400000L
+        if (endOfDueDay <= now) return
 
-        val baseCode = task.id.hashCode()
+        val baseCode = kotlin.math.abs(task.id.hashCode() % 100000) * 3
         val subjectPrefix = if (!subjectName.isNullOrBlank()) "[$subjectName] " else ""
 
         val dayBeforeCal = Calendar.getInstance().apply {
@@ -42,21 +43,25 @@ object TaskReminderManager {
             set(Calendar.MILLISECOND, 0)
         }
 
-        val alarms = listOf(
-            Triple(dayBeforeCal.timeInMillis, baseCode + 1, "${subjectPrefix}\"${task.title}\" is due tomorrow!"),
-            Triple(dayOfCal.timeInMillis, baseCode + 2, "${subjectPrefix}\"${task.title}\" is due today!")
-        )
+        val alarms = mutableListOf<Triple<Long, Int, String>>()
+        if (dayBeforeCal.timeInMillis > now) {
+            alarms += Triple(dayBeforeCal.timeInMillis, baseCode + 1, "${subjectPrefix}\"${task.title}\" is due tomorrow!")
+        }
+        if (dayOfCal.timeInMillis > now) {
+            alarms += Triple(dayOfCal.timeInMillis, baseCode + 2, "${subjectPrefix}\"${task.title}\" is due today!")
+        } else if (now < endOfDueDay) {
+            // Task is due today but created after morning window — set reminder 15 minutes from creation
+            alarms += Triple(now + 15 * 60 * 1000L, baseCode + 2, "${subjectPrefix}\"${task.title}\" is due today!")
+        }
 
         for ((triggerTime, requestCode, body) in alarms) {
-            if (triggerTime > now) {
-                scheduleAlarm(context, alarmManager, requestCode, task.title, body, triggerTime)
-            }
+            scheduleAlarm(context, alarmManager, requestCode, task.title, body, triggerTime)
         }
     }
 
     fun cancelTaskAlarms(context: Context, taskId: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val baseCode = taskId.hashCode()
+        val baseCode = kotlin.math.abs(taskId.hashCode() % 100000) * 3
         for (offset in 1..2) {
             val intent = Intent(context, TaskAlarmReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
