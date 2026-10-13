@@ -37,6 +37,7 @@ import com.Margin.app.domain.AttendanceMath
 import com.Margin.app.ui.theme.*
 import com.Margin.app.ui.viewmodel.AttendanceViewModel
 import com.Margin.app.ui.viewmodel.TaskViewModel
+import com.Margin.app.utils.BackupManager
 import com.Margin.app.utils.TimetableExportManager
 import java.text.SimpleDateFormat
 import java.util.*
@@ -1799,4 +1800,209 @@ private fun PillTag(text: String, color: Color) {
         Text(text, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
+
+// ── BACKUP & RESTORE SHEET ────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BackupRestoreSheet(
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var isBackingUp by remember { mutableStateOf(false) }
+    var isRestoring by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingMetadata by remember { mutableStateOf<BackupManager.BackupMetadata?>(null) }
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+
+    val createBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isBackingUp = true
+            val res = BackupManager.createBackup(context, uri)
+            isBackingUp = false
+            when {
+                res.isSuccess -> {
+                    val meta = res.getOrNull()
+                    Toast.makeText(context, "Backup saved successfully!\nSnapshot: ${meta?.formattedDate}", Toast.LENGTH_LONG).show()
+                }
+                res.isFailure -> {
+                    Toast.makeText(context, "Backup failed: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    val openBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val inspectRes = BackupManager.inspectBackup(context, uri)
+            if (inspectRes.isSuccess) {
+                pendingRestoreUri = uri
+                pendingMetadata = inspectRes.getOrNull()
+                showRestoreConfirmDialog = true
+            } else {
+                Toast.makeText(context, "Invalid backup: ${inspectRes.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 36.dp)
+                .imePadding()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(38.dp).background(NeonTealAlpha20, RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.SettingsBackupRestore, contentDescription = null, tint = NeonTeal, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("Backup & Restore", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    Text("Two-Tier Offline Data Safety • Zero Cloud Dependency", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // Tier 1 Card: Android OS Auto-Backup
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.CloudDone, contentDescription = null, tint = NeonTeal, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Tier 1 • Android Auto Backup", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onBackground)
+                    }
+                    Text(
+                        "Android OS automatically includes Margin's database in your private Google Drive device backup when connected to Wi-Fi and charging. If disabled in phone settings, your Tier 2 offline files remain 100% active.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+
+            // Tier 2 Card: Manual 1-Tap Offline File Backup
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.SdCard, contentDescription = null, tint = PurpleAccent, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Tier 2 • Manual Offline File Backup", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onBackground)
+                    }
+                    Text(
+                        "Create a complete snapshot of all semesters, attendance records, duty claims, and routine slots into a single .marginbackup file. Saving a backup NEVER deletes or alters your live database.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = {
+                                val timestamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+                                createBackupLauncher.launch("Margin_Backup_$timestamp.marginbackup")
+                            },
+                            enabled = !isBackingUp && !isRestoring,
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonTeal, contentColor = Color(0xFF003D35))
+                        ) {
+                            Icon(Icons.Filled.SaveAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (isBackingUp) "Saving..." else "Create Backup", fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                openBackupLauncher.launch(arrayOf("application/octet-stream", "*/*"))
+                            },
+                            enabled = !isBackingUp && !isRestoring,
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (isRestoring) "Restoring..." else "Restore File", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showRestoreConfirmDialog && pendingRestoreUri != null && pendingMetadata != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestoreConfirmDialog = false
+                pendingRestoreUri = null
+                pendingMetadata = null
+            },
+            title = { Text("Restore Database?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Found valid Margin backup created on:\n${pendingMetadata?.formattedDate}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "Restoring this backup will replace current records with this snapshot. The application will reboot automatically to refresh your timetable and attendance calculations.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val uri = pendingRestoreUri ?: return@Button
+                        showRestoreConfirmDialog = false
+                        isRestoring = true
+                        val res = BackupManager.restoreBackup(context, uri)
+                        if (res.isFailure) {
+                            isRestoring = false
+                            Toast.makeText(context, "Restore failed: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonTeal, contentColor = Color(0xFF003D35))
+                ) {
+                    Text("Restore & Restart", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showRestoreConfirmDialog = false
+                    pendingRestoreUri = null
+                    pendingMetadata = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
 

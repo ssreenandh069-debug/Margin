@@ -25,9 +25,9 @@
 - **Complete Semester Log**: Accurate tracking of all conducted classes ($T$), attended classes ($A$), bunks, absences, and manually logged events/medical leaves (`EXCUSED`) so students retain absolute transparency over their records.
 
 ### 2. Squad Sync (1-Tap Peer-to-Peer Timetable Sharing)
-- **100% Serverless**: Share whole timetables and subject rosters directly with classmates without creating accounts or syncing to a cloud server.
-- **Base64 Squad Codes (`MARGIN:...`)**: Formatted for seamless sharing via WhatsApp, Telegram, Discord, or SMS, with built-in word-wrapping resilience and duplicate slot deduplication.
-- **File Import/Export**: Fallback `.margin` JSON file export and import.
+- **100% Serverless & File-Free**: Share whole timetables and subject rosters directly with classmates without creating accounts, relying on servers, or juggling JSON file pickers.
+- **Base64 Squad Codes (`MARGIN:...`)**: Formatted for seamless sharing via WhatsApp, Telegram, Discord, or SMS, with built-in word-wrapping resilience, messaging app chat-prefix trimming, and automatic slot deduplication.
+- **Direct Integration**: Export and import codes directly in the **Insights** tab, **Landing** onboarding, or the **Semester Creation** dialog.
 
 ### 3. Full 7-Day Timetable Support
 - Complete routine management covering Monday through Sunday (Days 1–7).
@@ -58,6 +58,13 @@
 - Local Room SQLite database (v6) stored strictly in device internal storage.
 - **Zero Internet Permissions**: `android.permission.INTERNET` is not requested.
 - **Zero Telemetry / Trackers**: No Google Analytics, Firebase, or external ads.
+
+### 8. Two-Tier Offline Data Backup & Recovery
+- **Tier 1 (Automated OS Backup)**: Integrated with Android Auto Backup (`allowBackup="true"`) to automatically snapshot the SQLite database and preferences to private Google Drive device backup when connected to Wi-Fi and charging.
+- **Tier 2 (Manual 1-Tap Offline Snapshot)**: Export a verified, non-destructive `.marginbackup` container to any folder of choice (Downloads, SD Card, USB, or personal storage) via Android's native Storage Access Framework.
+- **100% Non-Destructive**: Creating a backup flushes WAL (`PRAGMA wal_checkpoint(FULL)`) and purely performs a read-only stream of `margin.db`; live attendance logs and settings are **never wiped or modified**.
+- **Works Without Google Services**: If Google Auto Backup is disabled in phone settings or running on de-Googled devices, Tier 2 remains 100% functional, allowing instant phone-to-phone migration via file transfer.
+- **Integrity Verification**: Backups inspect container metadata and verify SQLite magic header bytes (`"SQLite format 3"`) before touching the live database. On confirmation, it prunes stale `-wal`/`-shm` cache and cleanly reboots the app process.
 
 ---
 
@@ -96,7 +103,7 @@ com.Margin.app/
 ├── ui/
 │   ├── components/
 │   │   ├── MarginTopBar.kt          # Unified header with semester switcher
-│   │   └── Sheets.kt                # InteractiveCalendarSheet, ExtraDutySheet, SwapClassSheet, SquadSyncSheet
+│   │   └── Sheets.kt                # InteractiveCalendarSheet, ExtraDutySheet, SwapClassSheet, SquadSyncSheet, BackupRestoreSheet
 │   ├── screens/
 │   │   ├── TrackScreen.kt           # Attendance ledger & Time Machine date controls
 │   │   ├── TimetableScreen.kt       # 7-day routine viewer & editor
@@ -115,7 +122,8 @@ com.Margin.app/
 ├── workers/
 │   └── SmartBunkWorker.kt           # Periodic WorkManager daily bunk-budget analyzer
 └── utils/
-    ├── TimetableExportManager.kt    # Base64 Squad Sync & JSON serialization engine
+    ├── BackupManager.kt             # Two-Tier offline backup & restore engine (.marginbackup)
+    ├── TimetableExportManager.kt    # Base64 Squad Sync encoding & decoding engine
     └── ViewModelExt.kt              # CompositionLocal ViewModel injection helpers
 ```
 
@@ -129,7 +137,8 @@ com.Margin.app/
 
 ## 🔄 What Changed Since Commit `b64d2c6`
 
-- **Squad Sync Integration**: Replaced cumbersome file-only imports with 1-tap base64 squad codes supporting word-wrapped messaging app text.
+- **Pure Squad Sync (Removed JSON File Import/Export)**: Replaced file import/export with instant, serverless Base64 Squad Sync codes across the Insights screen, Landing screen, and Semester Creation dialog.
+- **Two-Tier Offline Backup System**: Implemented automated Android OS Auto-Backup and a 1-tap manual `.marginbackup` snapshot engine with non-destructive WAL checkpointing, SQLite header verification, and safe reboot restoration.
 - **Database Evolution (Room v6)**: Auto-reconciling migration preserving all existing tables and indexes while migrating schema to v6.
 - **Eradication of Phantom Duplicates**: Implemented slot-to-date binding (`getRecordsBySlotAndDate`, `deleteRecordsBySlotAndDate`) and in-memory deduplication across all ViewModels and workers.
 - **Interactive Calendar Sheet**: Replaced generic system DatePicker dialogs with the custom, attendance-indicator-dotted `InteractiveCalendarSheet` across both Time Machine and Duty Logging.

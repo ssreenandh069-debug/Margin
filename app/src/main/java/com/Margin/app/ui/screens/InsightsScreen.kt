@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.Margin.app.domain.AttendanceMath
+import com.Margin.app.ui.components.BackupRestoreSheet
 import com.Margin.app.ui.components.MarginTopBar
 import com.Margin.app.ui.components.SemesterOverviewSheet
 import com.Margin.app.ui.components.SquadSyncSheet
@@ -47,6 +48,7 @@ fun InsightsScreen(
     var showSemesterSheet by remember { mutableStateOf(false) }
     var showSquadSync by remember { mutableStateOf(false) }
     var squadSyncInitialTab by remember { mutableIntStateOf(0) }
+    var showBackupRestoreSheet by remember { mutableStateOf(false) }
 
     // Attendance Period Selector
     var selectedScope by remember { mutableStateOf(AttendanceScope.SEMESTER) }
@@ -734,6 +736,16 @@ fun InsightsScreen(
                             subtitle = "Switch active semester, archive, or configure term dates",
                             onClick = { showSemesterSheet = true }
                         )
+
+                        HorizontalDivider(color = SlatePillBorder, thickness = 0.5.dp)
+
+                        // Tool 5: Backup & Restore Data
+                        SemesterToolItem(
+                            icon = Icons.Filled.SettingsBackupRestore,
+                            title = "Backup & Restore Data",
+                            subtitle = "1-Tap offline snapshot backup (.marginbackup) or restore previous terms",
+                            onClick = { showBackupRestoreSheet = true }
+                        )
                     }
                 }
             }
@@ -753,6 +765,12 @@ fun InsightsScreen(
             onDismiss = { showSquadSync = false },
             viewModel = viewModel,
             initialTab = squadSyncInitialTab
+        )
+    }
+
+    if (showBackupRestoreSheet) {
+        BackupRestoreSheet(
+            onDismiss = { showBackupRestoreSheet = false }
         )
     }
 }
