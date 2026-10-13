@@ -1117,6 +1117,8 @@ fun SwapClassSheet(
     currentSubjectId: String,
     currentSubjectCode: String,
     currentSubjectName: String,
+    originalSubjectId: String = currentSubjectId,
+    originalSubjectCode: String = currentSubjectCode,
     time: String,
     viewModel: AttendanceViewModel,
     onDismiss: () -> Unit
@@ -1187,12 +1189,12 @@ fun SwapClassSheet(
                 }
             }
 
-            if (selectedSubjectId != currentSubjectId) {
+            if (selectedSubjectId != originalSubjectId) {
                 TextButton(
-                    onClick = { selectedSubjectId = currentSubjectId },
+                    onClick = { selectedSubjectId = originalSubjectId },
                     modifier = Modifier.align(Alignment.End)
                 ) {
-                    Text("Reset to $currentSubjectCode", color = NeonTeal, style = MaterialTheme.typography.labelSmall)
+                    Text("Reset to $originalSubjectCode", color = NeonTeal, style = MaterialTheme.typography.labelSmall)
                 }
             }
 
@@ -1346,10 +1348,12 @@ fun InteractiveCalendarSheet(
 
     val (monthStartMs, monthEndMs) = remember(displayedYear, displayedMonth) {
         val start = Calendar.getInstance().apply {
+            clear()
             set(displayedYear, displayedMonth, 1, 0, 0, 0)
             set(Calendar.MILLISECOND, 0)
         }
         val end = Calendar.getInstance().apply {
+            clear()
             set(displayedYear, displayedMonth, start.getActualMaximum(Calendar.DAY_OF_MONTH), 23, 59, 59)
             set(Calendar.MILLISECOND, 999)
         }
@@ -1377,7 +1381,7 @@ fun InteractiveCalendarSheet(
         val bunks = valid.count { it.status == "BUNK" }
         val total = valid.count {
             it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-            it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+            it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
             it.status == "ABSENT"
         }
         Triple(attended, total, bunks)
@@ -1385,16 +1389,25 @@ fun InteractiveCalendarSheet(
     val monthPct = if (monthTotal > 0) AttendanceMath.calculatePercentage(monthAttended, monthTotal) else 0f
 
     val monthTitle = remember(displayedYear, displayedMonth) {
-        val cal = Calendar.getInstance().apply { set(displayedYear, displayedMonth, 1) }
+        val cal = Calendar.getInstance().apply {
+            clear()
+            set(displayedYear, displayedMonth, 1)
+        }
         SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
     }
 
     val daysInMonth = remember(displayedYear, displayedMonth) {
-        Calendar.getInstance().apply { set(displayedYear, displayedMonth, 1) }.getActualMaximum(Calendar.DAY_OF_MONTH)
+        Calendar.getInstance().apply {
+            clear()
+            set(displayedYear, displayedMonth, 1)
+        }.getActualMaximum(Calendar.DAY_OF_MONTH)
     }
 
     val leadingEmpty = remember(displayedYear, displayedMonth) {
-        val firstDow = Calendar.getInstance().apply { set(displayedYear, displayedMonth, 1) }.get(Calendar.DAY_OF_WEEK)
+        val firstDow = Calendar.getInstance().apply {
+            clear()
+            set(displayedYear, displayedMonth, 1)
+        }.get(Calendar.DAY_OF_WEEK)
         // Calendar.SUNDAY = 1, MONDAY = 2 ... SATURDAY = 7
         if (firstDow == Calendar.SUNDAY) 6 else firstDow - 2
     }

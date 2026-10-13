@@ -32,7 +32,7 @@ class TaskViewModel(
 ) : ViewModel() {
 
     private val activeSession = repository.sessionsFlow.map { sessions ->
-        sessions.firstOrNull { it.isActive }
+        sessions.firstOrNull { it.isActive } ?: sessions.firstOrNull { !it.isCompleted }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val activeSessionId: StateFlow<String?> = activeSession.map { it?.id }

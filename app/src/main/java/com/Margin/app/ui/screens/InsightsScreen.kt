@@ -76,20 +76,26 @@ fun InsightsScreen(
 
     val monthRecords by viewModel.recordsInRangeFlow(monthRange.first, monthRange.second).collectAsState(initial = emptyList())
 
-    val monthAttended = remember(monthRecords) {
-        monthRecords.count { it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" }
+    val activeSubjectIds = remember(subjectOverviews) { subjectOverviews.map { it.id }.toSet() }
+    val monthRecordsFiltered = remember(monthRecords, activeSubjectIds) {
+        if (activeSubjectIds.isEmpty()) monthRecords
+        else monthRecords.filter { it.subjectId in activeSubjectIds }
     }
 
-    val monthTotal = remember(monthRecords) {
-        monthRecords.count {
+    val monthAttended = remember(monthRecordsFiltered) {
+        monthRecordsFiltered.count { it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" }
+    }
+
+    val monthTotal = remember(monthRecordsFiltered) {
+        monthRecordsFiltered.count {
             it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-            it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+            it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
             it.status == "ABSENT"
         }
     }
 
-    val monthBunks = remember(monthRecords) {
-        monthRecords.count { it.status == "BUNK" }
+    val monthBunks = remember(monthRecordsFiltered) {
+        monthRecordsFiltered.count { it.status == "BUNK" }
     }
 
     val monthPct = remember(monthAttended, monthTotal) {

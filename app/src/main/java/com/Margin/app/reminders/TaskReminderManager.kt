@@ -23,7 +23,7 @@ object TaskReminderManager {
         val endOfDueDay = task.dueDate + 86400000L
         if (endOfDueDay <= now) return
 
-        val baseCode = kotlin.math.abs(task.id.hashCode() % 100000) * 3
+        val baseCode = (task.id.hashCode() and 0x3FFFFFFF) * 2
         val subjectPrefix = if (!subjectName.isNullOrBlank()) "[$subjectName] " else ""
 
         val dayBeforeCal = Calendar.getInstance().apply {
@@ -45,13 +45,13 @@ object TaskReminderManager {
 
         val alarms = mutableListOf<Triple<Long, Int, String>>()
         if (dayBeforeCal.timeInMillis > now) {
-            alarms += Triple(dayBeforeCal.timeInMillis, baseCode + 1, "${subjectPrefix}\"${task.title}\" is due tomorrow!")
+            alarms += Triple(dayBeforeCal.timeInMillis, baseCode, "${subjectPrefix}\"${task.title}\" is due tomorrow!")
         }
         if (dayOfCal.timeInMillis > now) {
-            alarms += Triple(dayOfCal.timeInMillis, baseCode + 2, "${subjectPrefix}\"${task.title}\" is due today!")
+            alarms += Triple(dayOfCal.timeInMillis, baseCode + 1, "${subjectPrefix}\"${task.title}\" is due today!")
         } else if (now < endOfDueDay) {
             // Task is due today but created after morning window — set reminder 15 minutes from creation
-            alarms += Triple(now + 15 * 60 * 1000L, baseCode + 2, "${subjectPrefix}\"${task.title}\" is due today!")
+            alarms += Triple(now + 15 * 60 * 1000L, baseCode + 1, "${subjectPrefix}\"${task.title}\" is due today!")
         }
 
         for ((triggerTime, requestCode, body) in alarms) {
@@ -61,8 +61,8 @@ object TaskReminderManager {
 
     fun cancelTaskAlarms(context: Context, taskId: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val baseCode = kotlin.math.abs(taskId.hashCode() % 100000) * 3
-        for (offset in 1..2) {
+        val baseCode = (taskId.hashCode() and 0x3FFFFFFF) * 2
+        for (offset in 0..1) {
             val intent = Intent(context, TaskAlarmReceiver::class.java)
             val pendingIntent = PendingIntent.getBroadcast(
                 context,

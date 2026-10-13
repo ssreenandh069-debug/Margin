@@ -101,10 +101,10 @@ interface AttendanceRecordDao {
     @Query("UPDATE attendance_records SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: String, status: String)
 
-    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId AND date = :date ORDER BY id DESC LIMIT 1")
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId AND date = :date ORDER BY rowid DESC LIMIT 1")
     suspend fun getLatestRecordForSubjectOnDate(subjectId: String, date: Long): AttendanceRecordEntity?
 
-    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId ORDER BY date DESC, id DESC LIMIT 1")
+    @Query("SELECT * FROM attendance_records WHERE subjectId = :subjectId ORDER BY date DESC, rowid DESC LIMIT 1")
     suspend fun getLatestRecordForSubject(subjectId: String): AttendanceRecordEntity?
 
     @Query("DELETE FROM attendance_records WHERE id = :recordId")
@@ -120,7 +120,7 @@ interface TaskDao {
     fun getAllTasks(sessionId: String): Flow<List<TaskEntity>>
 
     @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND hasReminder = 1 AND dueDate > :now ORDER BY dueDate ASC")
-    suspend fun getPendingTasksWithReminders(now: Long = System.currentTimeMillis()): List<TaskEntity>
+    suspend fun getPendingTasksWithReminders(now: Long): List<TaskEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTask(task: TaskEntity)

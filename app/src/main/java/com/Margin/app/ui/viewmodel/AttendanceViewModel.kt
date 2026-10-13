@@ -21,6 +21,9 @@ data class TodayClassUi(
     val subjectId: String,
     val subjectCode: String,
     val subjectName: String,
+    val originalSubjectId: String,
+    val originalSubjectCode: String,
+    val originalSubjectName: String,
     val time: String,
     val room: String,
     val status: String,
@@ -79,8 +82,12 @@ class AttendanceViewModel(
     val allSessions: StateFlow<List<SessionEntity>> = repository.sessionsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val isInitialLoading: StateFlow<Boolean> = repository.sessionsFlow
+        .map { false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val activeSession: StateFlow<SessionEntity?> = allSessions.map { sessions ->
-        sessions.firstOrNull { it.isActive }
+        sessions.firstOrNull { it.isActive } ?: sessions.firstOrNull { !it.isCompleted }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val activeSessionId: StateFlow<String?> = activeSession.map { it?.id }
@@ -121,7 +128,7 @@ class AttendanceViewModel(
     ) { timetable, subjects, dateRecords, allRecords ->
         val sortedTimetable = timetable.sortedBy { AttendanceMath.parseTimeToMinutes(it.startTime) }
         sortedTimetable.map { entry ->
-            val record = dateRecords.find { (it.slotId == entry.id) || (it.slotId == null && it.subjectId == entry.subjectId) }
+            val record = dateRecords.find { it.slotId == entry.id }
             val status = record?.status ?: "NONE"
             val note = record?.note ?: ""
 
@@ -130,13 +137,17 @@ class AttendanceViewModel(
             val code = subject?.code ?: "SUB"
             val name = subject?.name ?: "Subject"
 
+            val originalSubject = subjects.find { it.id == entry.subjectId }
+            val originalCode = originalSubject?.code ?: code
+            val originalName = originalSubject?.name ?: name
+
             val subjectRecords = allRecords.filter { it.subjectId == effectiveSubjectId }
             val attended = subjectRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY"
             }
             val total = subjectRecords.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+                it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
                 it.status == "ABSENT"
             }
 
@@ -149,6 +160,9 @@ class AttendanceViewModel(
                 subjectId = effectiveSubjectId,
                 subjectCode = code,
                 subjectName = name,
+                originalSubjectId = entry.subjectId,
+                originalSubjectCode = originalCode,
+                originalSubjectName = originalName,
                 time = entry.startTime,
                 room = entry.room.ifBlank { "TBD" },
                 status = status,
@@ -174,7 +188,7 @@ class AttendanceViewModel(
             }
             val total = subRecs.count {
                 it.status == "PRESENT" || it.status == "PROXY" || it.status == "DUTY" ||
-                it.status == "BUNK"    || it.status == "EXCUSED" || it.status == "DUTY_ABSENT" ||
+                it.status == "BUNK"    || it.status == "DUTY_ABSENT" ||
                 it.status == "ABSENT"
             }
             val pct = AttendanceMath.calculatePercentage(attended, total)
@@ -194,12 +208,18 @@ class AttendanceViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // ── Tasks Flow for Analytics ──────────────────────────────────────────────
+    private val allTasksFlow = activeSessionId.flatMapLatest { sessionId ->
+        if (sessionId == null) flowOf(emptyList()) else repository.allTasksFlow(sessionId)
+    }
+
     // ── Analytics ─────────────────────────────────────────────────────────────
     val analytics: StateFlow<SemesterAnalyticsUi> = combine(
         subjectOverviews,
         allRecordsFlow,
-        activeSession
-    ) { overviews, records, session ->
+        activeSession,
+        allTasksFlow
+    ) { overviews, records, session, tasks ->
         if (session == null || overviews.isEmpty()) {
             SemesterAnalyticsUi()
         } else {
@@ -216,7 +236,10 @@ class AttendanceViewModel(
             val mostBunkedId = bunksBySubject.maxByOrNull { it.value }?.key
             val mostBunkedName = overviews.find { it.id == mostBunkedId }?.name
 
-            val heaviestSubjectId = repository.heaviestWorkloadSubjectId(session.id)
+            val heaviestSubjectId = tasks.filter { !it.isCompleted }
+                .groupBy { it.subjectId }
+                .maxByOrNull { it.value.size }?.key
+                ?: repository.heaviestWorkloadSubjectId(session.id)
             val heaviestName = overviews.find { it.id == heaviestSubjectId }?.name
 
             SemesterAnalyticsUi(
@@ -416,11 +439,6 @@ class AttendanceViewModel(
 
     fun importTimetableFromUri(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
-            val sessionId = activeSessionId.value
-            if (sessionId == null) {
-                onResult(false, "No active semester to import into.")
-                return@launch
-            }
             try {
                 val stream = context.contentResolver.openInputStream(uri)
                 if (stream == null) {
@@ -430,6 +448,16 @@ class AttendanceViewModel(
                 val parseResult = stream.use { TimetableExportManager.parseFromStream(it) }
                 when (parseResult) {
                     is TimetableExportManager.ParseResult.Success -> {
+                        var sessionId = activeSessionId.value
+                        if (sessionId == null) {
+                            sessionId = repository.createSessionWithSubjects(
+                                name = parseResult.sessionName,
+                                startDate = todayMidnight(),
+                                subjects = parseResult.subjects,
+                                activate = true
+                            )
+                            userPrefs.saveActiveSessionId(sessionId)
+                        }
                         repository.importTimetable(sessionId, parseResult.subjects, parseResult.slots)
                         onResult(true, "Imported ${parseResult.slots.size} classes successfully!")
                     }
@@ -456,13 +484,18 @@ class AttendanceViewModel(
 
     fun importFromSquadCode(rawCode: String, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
-            val sessionId = activeSessionId.value
-            if (sessionId == null) {
-                onResult(false, "No active semester to import into.")
-                return@launch
-            }
             when (val res = TimetableExportManager.parseFromString(rawCode)) {
                 is TimetableExportManager.ParseResult.Success -> {
+                    var sessionId = activeSessionId.value
+                    if (sessionId == null) {
+                        sessionId = repository.createSessionWithSubjects(
+                            name = res.sessionName,
+                            startDate = todayMidnight(),
+                            subjects = res.subjects,
+                            activate = true
+                        )
+                        userPrefs.saveActiveSessionId(sessionId)
+                    }
                     repository.importTimetable(sessionId, res.subjects, res.slots)
                     onResult(true, "Synced ${res.slots.size} classes with Squad!")
                 }

@@ -1,7 +1,12 @@
 package com.Margin.app.navigation
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.outlined.Assignment
@@ -51,7 +56,24 @@ val bottomNavItems = listOf(Screen.Track, Screen.Timetable, Screen.Tasks, Screen
 fun MainScaffold(
     attendanceViewModel: AttendanceViewModel = getAppViewModel()
 ) {
+    val isInitialLoading by attendanceViewModel.isInitialLoading.collectAsState()
     val activeSession by attendanceViewModel.activeSession.collectAsState()
+
+    if (isInitialLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DarkBg),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(36.dp),
+                color = NeonTeal,
+                strokeWidth = 3.dp
+            )
+        }
+        return
+    }
 
     if (activeSession == null) {
         LandingScreen(viewModel = attendanceViewModel)

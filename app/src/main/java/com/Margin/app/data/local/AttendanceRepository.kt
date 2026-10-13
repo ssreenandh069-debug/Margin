@@ -82,10 +82,7 @@ class AttendanceRepository(private val db: AppDatabase) {
         attendanceDao.getRecordsForSubjectsOnce(subjectIds)
 
     suspend fun markAttendance(subjectId: String, slotId: String?, date: Long, status: String, note: String = "") {
-        var existing = attendanceDao.getRecord(subjectId, date, slotId)
-        if (existing == null && slotId != null) {
-            existing = attendanceDao.getRecord(subjectId, date, null)
-        }
+        val existing = attendanceDao.getRecord(subjectId, date, slotId)
         if (existing != null) {
             if (status == "NONE") {
                 attendanceDao.deleteRecordById(existing.id)
@@ -218,7 +215,10 @@ class AttendanceRepository(private val db: AppDatabase) {
         }
 
         val existingSlots = timetableDao.getAllEntriesOnce(sessionId)
-        val entities = slots.mapNotNull { slot ->
+        val deduplicatedSlots = slots.distinctBy {
+            Triple(it.subjectCode.trim().lowercase(), it.day, it.time.trim().lowercase())
+        }
+        val entities = deduplicatedSlots.mapNotNull { slot ->
             val subjectId = codeToId[slot.subjectCode.trim().lowercase()] ?: return@mapNotNull null
             val isDuplicate = existingSlots.any {
                 it.subjectId == subjectId && it.dayOfWeek == slot.day && it.startTime.trim().equals(slot.time.trim(), ignoreCase = true)
@@ -268,5 +268,5 @@ class AttendanceRepository(private val db: AppDatabase) {
         taskDao.getHeaviestWorkloadSubjectId(sessionId)
 
     suspend fun getPendingTasksWithReminders(): List<TaskEntity> =
-        taskDao.getPendingTasksWithReminders()
+        taskDao.getPendingTasksWithReminders(System.currentTimeMillis())
 }

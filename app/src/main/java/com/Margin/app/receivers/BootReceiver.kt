@@ -24,7 +24,7 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val db = AppDatabase.getInstance(context)
-                val tasks = db.taskDao().getPendingTasksWithReminders()
+                val tasks = db.taskDao().getPendingTasksWithReminders(System.currentTimeMillis())
                 tasks.forEach { task ->
                     TaskReminderManager.scheduleTaskAlarms(context, task)
                 }

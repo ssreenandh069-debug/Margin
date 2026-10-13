@@ -70,7 +70,8 @@ fun TimetableScreen(
         Triple("WED", 3, "Wednesday"),
         Triple("THU", 4, "Thursday"),
         Triple("FRI", 5, "Friday"),
-        Triple("SAT", 6, "Saturday")
+        Triple("SAT", 6, "Saturday"),
+        Triple("SUN", 7, "Sunday")
     )
 
     val currentDayInfo = weekDays.find { it.second == selectedDayOfWeek } ?: weekDays.first()
@@ -135,7 +136,7 @@ fun TimetableScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(SlatePill)
                                 .clickable {
-                                    selectedDayOfWeek = if (selectedDayOfWeek > 1) selectedDayOfWeek - 1 else 6
+                                    selectedDayOfWeek = if (selectedDayOfWeek > 1) selectedDayOfWeek - 1 else 7
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -171,7 +172,7 @@ fun TimetableScreen(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(SlatePill)
                                 .clickable {
-                                    selectedDayOfWeek = if (selectedDayOfWeek < 6) selectedDayOfWeek + 1 else 1
+                                    selectedDayOfWeek = if (selectedDayOfWeek < 7) selectedDayOfWeek + 1 else 1
                                 },
                             contentAlignment = Alignment.Center
                         ) {

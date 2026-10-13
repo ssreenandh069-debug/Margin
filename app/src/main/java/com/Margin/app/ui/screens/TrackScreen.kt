@@ -416,6 +416,8 @@ fun TrackScreen(
             currentSubjectId = target.subjectId,
             currentSubjectCode = target.subjectCode,
             currentSubjectName = target.subjectName,
+            originalSubjectId = target.originalSubjectId,
+            originalSubjectCode = target.originalSubjectCode,
             time = target.time,
             viewModel = viewModel,
             onDismiss = { swapTargetClass = null }

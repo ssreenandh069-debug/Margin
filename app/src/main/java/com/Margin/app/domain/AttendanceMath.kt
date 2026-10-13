@@ -11,12 +11,13 @@ object AttendanceMath {
     fun utcToLocalMidnight(utcDateMs: Long): Long {
         val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcDateMs }
         val localCal = Calendar.getInstance().apply {
-            set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
-            set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
-            set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
+            clear()
+            set(
+                utcCal.get(Calendar.YEAR),
+                utcCal.get(Calendar.MONTH),
+                utcCal.get(Calendar.DAY_OF_MONTH),
+                0, 0, 0
+            )
             set(Calendar.MILLISECOND, 0)
         }
         return localCal.timeInMillis
@@ -25,12 +26,13 @@ object AttendanceMath {
     fun localToUtcMidnight(localMs: Long): Long {
         val localCal = Calendar.getInstance().apply { timeInMillis = localMs }
         val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-            set(Calendar.YEAR, localCal.get(Calendar.YEAR))
-            set(Calendar.MONTH, localCal.get(Calendar.MONTH))
-            set(Calendar.DAY_OF_MONTH, localCal.get(Calendar.DAY_OF_MONTH))
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
+            clear()
+            set(
+                localCal.get(Calendar.YEAR),
+                localCal.get(Calendar.MONTH),
+                localCal.get(Calendar.DAY_OF_MONTH),
+                0, 0, 0
+            )
             set(Calendar.MILLISECOND, 0)
         }
         return utcCal.timeInMillis
@@ -114,7 +116,7 @@ object AttendanceMath {
             set(Calendar.SECOND, 0);      set(Calendar.MILLISECOND, 0)
         }
 
-        val diffDays = ((dueCal.timeInMillis - todayCal.timeInMillis) / 86400000L).toInt()
+        val diffDays = Math.round((dueCal.timeInMillis - todayCal.timeInMillis).toDouble() / 86400000.0).toInt()
 
         return when {
             diffDays < -1 -> "Overdue by ${-diffDays} days"

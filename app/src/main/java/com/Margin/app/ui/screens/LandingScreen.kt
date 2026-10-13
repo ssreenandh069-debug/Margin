@@ -35,6 +35,7 @@ import com.Margin.app.utils.getAppViewModel
 fun LandingScreen(
     viewModel: AttendanceViewModel = getAppViewModel()
 ) {
+    val allSessions by viewModel.allSessions.collectAsState()
     var showCreateSheet by remember { mutableStateOf(false) }
     var showSquadSync by remember { mutableStateOf(false) }
 
@@ -275,6 +276,99 @@ fun LandingScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
+                    }
+                }
+            }
+
+            if (allSessions.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardDark),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SlatePillBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Your Semesters",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(SlatePill)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "${allSessions.size} SAVED",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(6.dp))
+
+                        Text(
+                            text = "Select a previously created semester to continue tracking attendance.",
+                            fontSize = 13.sp,
+                            color = TextSecondary,
+                            lineHeight = 18.sp
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+
+                        allSessions.forEach { sess ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SlatePill)
+                                    .border(1.dp, SlatePillBorder, RoundedCornerShape(12.dp))
+                                    .clickable { viewModel.setActiveSession(sess.id) }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = sess.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = if (sess.isCompleted) "Completed" else "Archived / Inactive",
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                }
+
+                                Button(
+                                    onClick = { viewModel.setActiveSession(sess.id) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = NeonTealAlpha20,
+                                        contentColor = NeonTeal
+                                    ),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Text("Open", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
                     }
                 }
             }

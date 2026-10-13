@@ -138,7 +138,7 @@ object TimetableExportManager {
             val trimmed = rawInput.trim()
             val json = if (trimmed.contains("MARGIN:")) {
                 val afterPrefix = trimmed.substringAfter("MARGIN:").trim()
-                val base64Data = afterPrefix.split(Regex("""\s+""")).firstOrNull() ?: afterPrefix
+                val base64Data = afterPrefix.replace(Regex("""\s+"""), "")
                 String(Base64.decode(base64Data, Base64.DEFAULT), Charsets.UTF_8)
             } else {
                 trimmed
